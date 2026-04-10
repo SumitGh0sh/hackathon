@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getApplications, updateApplicationStatus } from "../utils/applications";
 
 /* ── Google Fonts ── */
 const FontLink = () => (
@@ -134,12 +135,12 @@ function StatusBadge({ status }) {
 /* ══════════════════════════════════════════════
    OVERVIEW PANEL
 ══════════════════════════════════════════════ */
-function OverviewPanel({ setActiveTab }) {
+function OverviewPanel({ setActiveTab, queries }) {
   const stats = [
-    { n: QUERIES.filter(q => q.status === "Pending").length,   label: "Pending",   color: "text-amber-700",   bg: "bg-amber-50 border-amber-100"    },
-    { n: QUERIES.filter(q => q.status === "In Review").length, label: "In Review", color: "text-sky-700",     bg: "bg-sky-50 border-sky-100"        },
-    { n: QUERIES.filter(q => q.status === "Escalated").length, label: "Escalated", color: "text-rose-700",    bg: "bg-rose-50 border-rose-100"      },
-    { n: QUERIES.filter(q => q.status === "Resolved").length,  label: "Resolved",  color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
+    { n: queries.filter(q => q.status === "Pending").length,   label: "Pending",   color: "text-amber-700",   bg: "bg-amber-50 border-amber-100"    },
+    { n: queries.filter(q => q.status === "In Review").length, label: "In Review", color: "text-sky-700",     bg: "bg-sky-50 border-sky-100"        },
+    { n: queries.filter(q => q.status === "Escalated").length, label: "Escalated", color: "text-rose-700",    bg: "bg-rose-50 border-rose-100"      },
+    { n: queries.filter(q => q.status === "Approved" || q.status === "Resolved").length,  label: "Approved",  color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
   ];
 
   return (
@@ -180,7 +181,7 @@ function OverviewPanel({ setActiveTab }) {
           </button>
         </div>
         <div className="flex flex-col gap-2">
-          {QUERIES.slice(0, 4).map(q => (
+          {queries.slice(0, 4).map(q => (
             <div key={q.id} className="bg-white rounded-xl border border-stone-100 px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-stone-800 truncate">{q.subject}</p>
@@ -330,11 +331,11 @@ function QueryModal({ query, onClose, onStatusChange }) {
 /* ══════════════════════════════════════════════
    QUERIES PANEL
 ══════════════════════════════════════════════ */
-function QueriesPanel() {
+function QueriesPanel({ initialQueries }) {
   const [deptFilter, setDeptFilter] = useState("All Departments");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selected, setSelected] = useState(null);
-  const [queries, setQueries] = useState(QUERIES);
+  const [queries, setQueries] = useState(initialQueries);
   const [search, setSearch] = useState("");
 
   const filtered = queries.filter(q => {
@@ -345,6 +346,7 @@ function QueriesPanel() {
   });
 
   const handleStatusChange = (id, newStatus) => {
+    updateApplicationStatus(id, newStatus);
     setQueries(prev => prev.map(q => q.id === id ? { ...q, status: newStatus } : q));
   };
 
@@ -764,7 +766,7 @@ function BlockchainPanel() {
 /* ══════════════════════════════════════════════
    PROFILE PANEL
 ══════════════════════════════════════════════ */
-function ProfilePanel() {
+function ProfilePanel({ onSignOut }) {
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState({ ...ADMIN });
   const [draft, setDraft] = useState({ ...ADMIN });
@@ -900,7 +902,7 @@ function ProfilePanel() {
           { label: "Change password",           cls: "text-stone-700 bg-white border-stone-200 hover:border-stone-300" },
           { label: "Sign out",                  cls: "text-rose-600 bg-rose-50 border-rose-100 hover:border-rose-300"  },
         ].map(a => (
-          <button key={a.label} className={`w-full py-3 rounded-xl border text-sm font-medium cursor-pointer transition-colors ${a.cls}`}>
+          <button key={a.label} onClick={a.label === "Sign out" ? onSignOut : undefined} className={`w-full py-3 rounded-xl border text-sm font-medium cursor-pointer transition-colors ${a.cls}`}>
             {a.label}
           </button>
         ))}
@@ -912,20 +914,37 @@ function ProfilePanel() {
 /* ══════════════════════════════════════════════
    MAIN ADMIN DASHBOARD
 ══════════════════════════════════════════════ */
-export default function AdminDashboard() {
+export default function AdminDashboard({ onSignOut }) {
   const [activeTab, setActiveTab]   = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [queries, setQueries] = useState(QUERIES);
+
+  useEffect(() => {
+    const apps = getApplications().map((app) => ({
+      id: app.id,
+      citizen: app.formData?.fullName || "Citizen",
+      dept: app.category || "General",
+      subject: app.schemeName,
+      status: app.status || "Pending",
+      priority: "medium",
+      filed: app.filed || "-",
+      district: app.state || "-",
+      doc: Boolean(app.uploadedFiles?.length),
+      hash: app.id
+    }));
+    if (apps.length) setQueries(apps);
+  }, []);
 
   const panels = {
-    overview:   <OverviewPanel setActiveTab={setActiveTab} />,
-    queries:    <QueriesPanel />,
+    overview:   <OverviewPanel setActiveTab={setActiveTab} queries={queries} />,
+    queries:    <QueriesPanel initialQueries={queries} />,
     bots:       <BotsPanel />,
     blockchain: <BlockchainPanel />,
-    profile:    <ProfilePanel />,
+    profile:    <ProfilePanel onSignOut={onSignOut} />,
   };
 
-  const pendingCount = QUERIES.filter(q => q.status === "Pending").length;
-  const escalated    = QUERIES.filter(q => q.status === "Escalated").length;
+  const pendingCount = queries.filter(q => q.status === "Pending").length;
+  const escalated    = queries.filter(q => q.status === "Escalated").length;
 
   return (
     <div className="bg-stone-50 min-h-screen" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -1067,6 +1086,12 @@ export default function AdminDashboard() {
               className="w-9 h-9 rounded-xl bg-emerald-700 text-white text-xs font-serif font-medium flex items-center justify-center cursor-pointer border-none hover:bg-emerald-800 transition-colors shrink-0"
             >
               {ADMIN.avatar}
+            </button>
+            <button
+              onClick={onSignOut}
+              className="hidden sm:block px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-medium cursor-pointer hover:border-rose-300 transition-colors"
+            >
+              Sign out
             </button>
           </header>
 

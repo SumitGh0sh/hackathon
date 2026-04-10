@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, useInView, useScroll, useTransform, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { MapContainer, TileLayer, Polygon, Popup, Marker } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
 
 /* ─── typing hook ─────────────────────────────────────────────── */
 function useTyping(words, speed = 70, pause = 1800) {
@@ -188,6 +192,148 @@ const SERVICES_DATA = {
   }
 };
 
+const MOCK_SCHEMES = {
+  Jharkhand: {
+    Agriculture: [
+      { id: "SCH001", name: "PM Kisan Samman Nidhi", benefit: "₹6000/year", eligibility: "Small and marginal farmers", mode: "Online + CSC", rating: 4.8 },
+      { id: "SCH002", name: "Pradhan Mantri Fasal Bima Yojana", benefit: "Crop insurance support", eligibility: "All enrolled farmers", mode: "Online + Bank", rating: 4.6 },
+      { id: "SCH003", name: "KCC - Kisan Credit Card", benefit: "Low-interest crop loans", eligibility: "Eligible landholding farmers", mode: "Bank + CSC", rating: 4.5 }
+    ],
+    Health: [
+      { id: "SCH004", name: "Ayushman Bharat PM-JAY", benefit: "Up to ₹5 lakh family cover", eligibility: "Eligible low-income households", mode: "Online + Hospital Desk", rating: 4.9 },
+      { id: "SCH005", name: "Janani Suraksha Yojana", benefit: "Cash support for institutional delivery", eligibility: "Pregnant women under criteria", mode: "Offline + PHC", rating: 4.4 },
+      { id: "SCH006", name: "National Dialysis Programme", benefit: "Subsidized/free dialysis", eligibility: "Patients in empaneled hospitals", mode: "Hospital + Referral", rating: 4.3 }
+    ],
+    Education: [
+      { id: "SCH007", name: "Post Matric Scholarship (ST/SC/OBC)", benefit: "Tuition and maintenance support", eligibility: "Eligible category students", mode: "Online", rating: 4.7 },
+      { id: "SCH008", name: "NSP Central Sector Scholarship", benefit: "Annual scholarship support", eligibility: "Meritorious students under income cap", mode: "Online", rating: 4.5 },
+      { id: "SCH009", name: "Pre-Matric Scholarship", benefit: "School-level financial support", eligibility: "Eligible school students", mode: "Online + School", rating: 4.4 }
+    ],
+    Women: [
+      { id: "SCH010", name: "PM Matru Vandana Yojana", benefit: "₹5000 maternity benefit", eligibility: "First live birth under conditions", mode: "Online + Anganwadi", rating: 4.6 },
+      { id: "SCH011", name: "One Stop Centre Scheme", benefit: "Legal and counseling support", eligibility: "Women facing violence", mode: "Offline + Helpline", rating: 4.3 },
+      { id: "SCH012", name: "Beti Bachao Beti Padhao", benefit: "Awareness + support initiatives", eligibility: "Girl child and families", mode: "Offline + District Office", rating: 4.2 }
+    ],
+    Employment: [
+      { id: "SCH013", name: "MGNREGA", benefit: "100 days wage employment", eligibility: "Rural households", mode: "Offline + Panchayat", rating: 4.7 },
+      { id: "SCH014", name: "PMEGP", benefit: "Credit-linked subsidy for enterprises", eligibility: "New entrepreneurs", mode: "Online + KVIC", rating: 4.4 },
+      { id: "SCH015", name: "Skill India PMKVY", benefit: "Free skill training", eligibility: "Youth seeking employment", mode: "Online + Training Center", rating: 4.5 }
+    ]
+  },
+  Maharashtra: {
+    Agriculture: [
+      { id: "SCH101", name: "PM Kisan Samman Nidhi", benefit: "₹6000/year", eligibility: "Small and marginal farmers", mode: "Online + CSC", rating: 4.8 },
+      { id: "SCH102", name: "PM Fasal Bima Yojana", benefit: "Seasonal crop risk coverage", eligibility: "Notified crop farmers", mode: "Online + Bank", rating: 4.6 },
+      { id: "SCH103", name: "Soil Health Card Scheme", benefit: "Soil testing + nutrient advisory", eligibility: "All farmers", mode: "Offline + Agriculture Office", rating: 4.3 }
+    ],
+    Health: [
+      { id: "SCH104", name: "Ayushman Bharat PM-JAY", benefit: "Up to ₹5 lakh family cover", eligibility: "Eligible families", mode: "Online + Hospital Desk", rating: 4.9 },
+      { id: "SCH105", name: "Mahatma Jyotiba Phule Jan Arogya Yojana", benefit: "Cashless treatment package", eligibility: "State eligible beneficiaries", mode: "Hospital + Card", rating: 4.7 },
+      { id: "SCH106", name: "Jan Aushadhi Scheme", benefit: "Affordable generic medicines", eligibility: "All citizens", mode: "Offline + Store", rating: 4.4 }
+    ],
+    Education: [
+      { id: "SCH107", name: "Post Matric Scholarship", benefit: "Fee and stipend support", eligibility: "Eligible category students", mode: "Online", rating: 4.6 },
+      { id: "SCH108", name: "EBC Fee Reimbursement", benefit: "Partial/full fee reimbursement", eligibility: "Economically backward class students", mode: "Online", rating: 4.5 },
+      { id: "SCH109", name: "National Means-cum-Merit Scholarship", benefit: "Annual school scholarship", eligibility: "Merit + income criteria", mode: "Online + School", rating: 4.4 }
+    ],
+    Women: [
+      { id: "SCH110", name: "PM Matru Vandana Yojana", benefit: "₹5000 maternity benefit", eligibility: "Eligible mothers", mode: "Online + Anganwadi", rating: 4.6 },
+      { id: "SCH111", name: "Women Helpline Scheme", benefit: "24x7 emergency support", eligibility: "All women", mode: "Helpline + Offline", rating: 4.3 },
+      { id: "SCH112", name: "Self Help Group Support (NRLM)", benefit: "Credit and livelihood support", eligibility: "Women SHGs", mode: "Offline + Block Office", rating: 4.4 }
+    ],
+    Employment: [
+      { id: "SCH113", name: "MGNREGA", benefit: "100 days wage employment", eligibility: "Rural households", mode: "Offline + Panchayat", rating: 4.7 },
+      { id: "SCH114", name: "PMEGP", benefit: "Subsidy for micro-enterprise setup", eligibility: "Entrepreneurs", mode: "Online + DIC", rating: 4.5 },
+      { id: "SCH115", name: "NULM Skill Training", benefit: "Urban livelihood and skilling", eligibility: "Urban poor youth", mode: "Online + ULB", rating: 4.3 }
+    ]
+  }
+};
+
+const PIN_STATE_MAP = {
+  "826001": "Jharkhand",
+  "834001": "Jharkhand",
+  "831001": "Jharkhand",
+  "400001": "Maharashtra",
+  "411001": "Maharashtra",
+  "440001": "Maharashtra"
+};
+
+const CITY_STATE_MAP = {
+  dhanbad: "Jharkhand",
+  ranchi: "Jharkhand",
+  jamshedpur: "Jharkhand",
+  mumbai: "Maharashtra",
+  pune: "Maharashtra",
+  nagpur: "Maharashtra"
+};
+
+function getStateFromInput(input) {
+  const cleaned = (input || "").trim().toLowerCase();
+  if (!cleaned) return "";
+
+  if (/^\d{6}$/.test(cleaned)) {
+    return PIN_STATE_MAP[cleaned] || "";
+  }
+
+  return CITY_STATE_MAP[cleaned] || "";
+}
+
+function flattenSchemesByCategory(schemesByCategory) {
+  return Object.entries(schemesByCategory || {}).flatMap(([category, schemes]) =>
+    (schemes || []).map((scheme) => ({ ...scheme, category }))
+  );
+}
+
+const jharkhandCoords = [
+  [24.8, 83.1],
+  [25.7, 84.9],
+  [24.7, 86.8],
+  [23.5, 87.8],
+  [22.3, 87.4],
+  [21.7, 85.5],
+  [22.1, 84.2],
+  [23.2, 83.2]
+];
+
+const jharkhandCenter = [23.61, 85.28];
+const ranchiMarker = [23.3441, 85.3096];
+const markerIcon = L.divIcon({
+  className: "jharkhand-marker",
+  html: '<div style="background:#047857;color:white;border-radius:9999px;padding:6px 8px;font-size:11px;font-weight:600;box-shadow:0 6px 16px rgba(0,0,0,0.22);">Jharkhand</div>'
+});
+
+function IndiaSchemesMap({ detectedState, onSelectJharkhand }) {
+  return (
+    <MapContainer center={[22.7, 79.8]} zoom={4.5} className="w-full h-full rounded-2xl" scrollWheelZoom>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <Polygon
+        positions={jharkhandCoords}
+        pathOptions={{
+          color: detectedState === "Jharkhand" ? "#059669" : "#10b981",
+          fillColor: detectedState === "Jharkhand" ? "#059669" : "#34d399",
+          fillOpacity: detectedState === "Jharkhand" ? 0.45 : 0.28,
+          weight: 2
+        }}
+        eventHandlers={{ click: onSelectJharkhand }}
+      >
+        <Popup>
+          <div className="text-sm">
+            <p className="font-semibold">Jharkhand</p>
+            <p>Click to load schemes</p>
+          </div>
+        </Popup>
+      </Polygon>
+      <Marker position={ranchiMarker} icon={markerIcon} eventHandlers={{ click: onSelectJharkhand }}>
+        <Popup>Ranchi, Jharkhand</Popup>
+      </Marker>
+      <Marker position={jharkhandCenter} opacity={0} />
+    </MapContainer>
+  );
+}
+
 const CENTERS_DATA = [
   {
     name: "CSC Center - Village Hub",
@@ -303,7 +449,66 @@ const PLACEHOLDERS = [
 ];
 
 /* ─── auth modal ──────────────────────────────────────────────── */
-function AuthModal({ open, onClose, mode, setMode }) {
+function AuthModal({ open, onClose, mode, setMode, onAuthSuccess, onOpenAdminDetails }) {
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    lang: "English",
+    role: "user"
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setError("");
+      setLoading(false);
+    }
+  }, [open]);
+
+  const handleChange = (field) => (e) => {
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleSubmit = async () => {
+    setError("");
+
+    if (!form.email || !form.password || (mode === "Register" && !form.name)) {
+      setError("Please fill all required fields.");
+      return;
+    }
+
+    const endpoint = mode === "Login" ? "login" : "register";
+    const payload =
+      mode === "Login"
+        ? { email: form.email, password: form.password, role: form.role }
+        : { name: form.name, email: form.email, password: form.password, lang: form.lang };
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5000/api/users/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(data.message || "Something went wrong. Please try again.");
+        return;
+      }
+
+      onAuthSuccess?.({ token: data.token, role: data?.user?.role || form.role });
+      onClose();
+    } catch (err) {
+      setError("Unable to connect to server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -352,32 +557,64 @@ function AuthModal({ open, onClose, mode, setMode }) {
               {mode === "Register" && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-stone-500 tracking-wide">Full name</label>
-                  <input placeholder="Rahul Sharma"
+                  <input
+                    value={form.name}
+                    onChange={handleChange("name")}
+                    placeholder="Rahul Sharma"
                     className="w-full px-4 py-3 rounded-xl border border-stone-200 text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors placeholder:text-stone-300 bg-white" />
                 </div>
               )}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-stone-500 tracking-wide">Mobile or email</label>
-                <input placeholder="+91 98765 43210"
+                <input
+                  value={form.email}
+                  onChange={handleChange("email")}
+                  placeholder="+91 98765 43210"
                   className="w-full px-4 py-3 rounded-xl border border-stone-200 text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors placeholder:text-stone-300 bg-white" />
               </div>
+              {mode === "Login" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-stone-500 tracking-wide">Login as</label>
+                  <select
+                    value={form.role}
+                    onChange={handleChange("role")}
+                    className="w-full px-4 py-3 rounded-xl border border-stone-200 text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              )}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-stone-500 tracking-wide">Password</label>
-                <input type="password" placeholder="••••••••"
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={handleChange("password")}
+                  placeholder="••••••••"
                   className="w-full px-4 py-3 rounded-xl border border-stone-200 text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors placeholder:text-stone-300 bg-white" />
               </div>
               {mode === "Register" && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-stone-500 tracking-wide">Preferred language</label>
-                  <select className="w-full px-4 py-3 rounded-xl border border-stone-200 text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white">
+                  <select
+                    value={form.lang}
+                    onChange={handleChange("lang")}
+                    className="w-full px-4 py-3 rounded-xl border border-stone-200 text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white">
                     {LANGUAGES.map(l => <option key={l}>{l}</option>)}
                   </select>
                 </div>
               )}
+              {error && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  {error}
+                </p>
+              )}
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                onClick={handleSubmit}
+                disabled={loading}
                 className="w-full py-3.5 rounded-xl bg-emerald-700 text-white text-sm font-medium mt-1 cursor-pointer border-none hover:bg-emerald-800 transition-colors"
                 style={{ boxShadow: "0 4px 20px rgba(5,150,105,0.35)" }}>
-                {mode === "Login" ? "Sign in" : "Create account"}
+                {loading ? "Please wait..." : mode === "Login" ? "Sign in" : "Create account"}
               </motion.button>
             </div>
 
@@ -389,6 +626,20 @@ function AuthModal({ open, onClose, mode, setMode }) {
                 {mode === "Login" ? "Register" : "Sign in"}
               </button>
             </p>
+            {mode === "Login" && (
+              <p className="text-center text-xs text-stone-400 mt-2">
+                Need an admin account?{" "}
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenAdminDetails?.();
+                  }}
+                  className="text-emerald-700 font-medium border-none bg-transparent cursor-pointer text-xs"
+                >
+                  Add admin details
+                </button>
+              </p>
+            )}
           </motion.div>
         </motion.div>
       )}
@@ -397,7 +648,8 @@ function AuthModal({ open, onClose, mode, setMode }) {
 }
 
 /* ─── main ────────────────────────────────────────────────────── */
-export default function LandingPage() {
+export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSignOut }) {
+  const navigate = useNavigate();
   const [query,     setQuery]     = useState("");
   const [langOpen,  setLangOpen]  = useState(false);
   const [selLang,   setSelLang]   = useState("English");
@@ -415,11 +667,8 @@ export default function LandingPage() {
 
   // Apply Near You state
   const [locationQuery, setLocationQuery] = useState("");
-  const [nearbyCenters, setNearbyCenters] = useState([]);
-  const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
-  const [selectedDistance, setSelectedDistance] = useState("5km");
-  const [selectedRating, setSelectedRating] = useState("All");
-  const [selectedServiceFilter, setSelectedServiceFilter] = useState("All");
+  const [schemesData, setSchemesData] = useState(null);
+  const [detectedState, setDetectedState] = useState("");
   const [isLocationLoading, setIsLocationLoading] = useState(false);
 
   const { scrollY } = useScroll();
@@ -428,6 +677,74 @@ export default function LandingPage() {
 
   const openLogin = () => { setMode("Login");    setModal(true); };
   const openReg   = () => { setMode("Register"); setModal(true); };
+
+  const handleFetchSchemesByState = (stateName) => {
+    setDetectedState(stateName);
+    setSchemesData(MOCK_SCHEMES[stateName] || {});
+  };
+
+  const handleUseMyLocation = () => {
+    setIsLocationLoading(true);
+    setTimeout(() => {
+      handleFetchSchemesByState("Jharkhand");
+      setIsLocationLoading(false);
+    }, 1200);
+  };
+
+  const handleSearchSchemes = () => {
+    setIsLocationLoading(true);
+    setTimeout(() => {
+      const stateName = getStateFromInput(locationQuery);
+      if (!stateName) {
+        setDetectedState("");
+        setSchemesData({});
+      } else {
+        handleFetchSchemesByState(stateName);
+      }
+      setIsLocationLoading(false);
+    }, 700);
+  };
+
+  const recommendedSchemes = flattenSchemesByCategory(schemesData)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 2);
+
+  const handleApplyScheme = (scheme, category) => {
+    const payload = { ...scheme, category, detectedState };
+    if (!isAuthenticated || role !== "user") {
+      localStorage.setItem("pendingSchemeApply", JSON.stringify(payload));
+      setMode("Login");
+      setModal(true);
+      return;
+    }
+    navigate(`/apply/${scheme.id}`, { state: { scheme: payload, detectedState } });
+  };
+
+  const handleJharkhandPinClick = (pin) => {
+    setLocationQuery(pin);
+    setIsLocationLoading(true);
+    setTimeout(() => {
+      const stateName = getStateFromInput(pin);
+      handleFetchSchemesByState(stateName || "Jharkhand");
+      setIsLocationLoading(false);
+    }, 450);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const pending = localStorage.getItem("pendingSchemeApply");
+      if (pending && role === "user") {
+        try {
+          const parsed = JSON.parse(pending);
+          navigate(`/apply/${parsed.id}`, { state: { scheme: parsed, detectedState: parsed.detectedState || "Jharkhand" } });
+          return;
+        } catch (error) {
+          localStorage.removeItem("pendingSchemeApply");
+        }
+      }
+      navigate(role === "admin" ? "/admin" : "/dashboard");
+    }
+  }, [isAuthenticated, role, navigate]);
 
   return (
     <div className="bg-stone-50 text-stone-900 min-h-screen overflow-x-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -483,7 +800,14 @@ export default function LandingPage() {
         .btn-shadow:hover { box-shadow: 0 6px 20px rgba(5,150,105,0.42); }
       `}</style>
 
-      <AuthModal open={modal} onClose={() => setModal(false)} mode={mode} setMode={setMode} />
+      <AuthModal
+        open={modal}
+        onClose={() => setModal(false)}
+        mode={mode}
+        setMode={setMode}
+        onAuthSuccess={onAuthSuccess}
+        onOpenAdminDetails={() => navigate("/admin-details")}
+      />
 
       {/* ══ NAVBAR ════════════════════════════════════════════════ */}
       <motion.nav
@@ -550,18 +874,27 @@ export default function LandingPage() {
               </AnimatePresence>
             </div>
 
-            {/* login */}
-            <button onClick={openLogin}
-              className="hidden sm:block text-sm border border-stone-200 rounded-xl px-4 py-2 bg-white text-stone-700 cursor-pointer hover:border-emerald-600 hover:text-emerald-700 transition-colors font-medium"
-              style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-              Login
-            </button>
+            {!isAuthenticated ? (
+              <>
+                <button onClick={openLogin}
+                  className="hidden sm:block text-sm border border-stone-200 rounded-xl px-4 py-2 bg-white text-stone-700 cursor-pointer hover:border-emerald-600 hover:text-emerald-700 transition-colors font-medium"
+                  style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                  Login
+                </button>
 
-            {/* register */}
-            <button onClick={openReg}
-              className="btn-shadow text-sm rounded-xl px-4 py-2 bg-emerald-700 text-white cursor-pointer font-medium hover:bg-emerald-800 transition-colors border-none">
-              Register
-            </button>
+                <button onClick={openReg}
+                  className="btn-shadow text-sm rounded-xl px-4 py-2 bg-emerald-700 text-white cursor-pointer font-medium hover:bg-emerald-800 transition-colors border-none">
+                  Register
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={onSignOut}
+                className="text-sm border border-rose-200 rounded-xl px-4 py-2 bg-rose-50 text-rose-700 cursor-pointer hover:border-rose-300 transition-colors font-medium"
+              >
+                Sign out
+              </button>
+            )}
 
             {/* hamburger */}
             <button onClick={() => setMobileNav(o => !o)}
@@ -1082,13 +1415,7 @@ export default function LandingPage() {
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setIsLocationLoading(true);
-                        setTimeout(() => {
-                          setNearbyCenters(CENTERS_DATA);
-                          setIsLocationLoading(false);
-                        }, 1500);
-                      }}
+                      onClick={handleUseMyLocation}
                       className="w-full bg-emerald-700 text-white text-sm font-medium rounded-xl px-6 py-3 cursor-pointer border-none hover:bg-emerald-800 transition-colors flex items-center justify-center gap-2"
                     >
                       {isLocationLoading ? (
@@ -1120,213 +1447,143 @@ export default function LandingPage() {
                         type="text"
                         value={locationQuery}
                         onChange={(e) => setLocationQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearchSchemes()}
                         placeholder="Enter city or PIN code"
                         className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
                       />
                     </div>
+                    <button
+                      onClick={handleSearchSchemes}
+                      className="mt-2 w-full bg-stone-900 text-white text-sm font-medium rounded-xl px-4 py-2.5 border-none cursor-pointer hover:bg-stone-800 transition-colors"
+                    >
+                      Search
+                    </button>
                   </div>
                 </div>
 
-                {/* Filters */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-stone-700">Distance:</label>
-                      <select
-                        value={selectedDistance}
-                        onChange={(e) => setSelectedDistance(e.target.value)}
-                        className="px-3 py-1 border border-stone-200 rounded-lg text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
-                      >
-                        <option>1km</option>
-                        <option>5km</option>
-                        <option>10km</option>
-                        <option>25km</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-stone-700">Rating:</label>
-                      <select
-                        value={selectedRating}
-                        onChange={(e) => setSelectedRating(e.target.value)}
-                        className="px-3 py-1 border border-stone-200 rounded-lg text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
-                      >
-                        <option>All</option>
-                        <option>4+ stars</option>
-                        <option>3+ stars</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-stone-700">Service:</label>
-                      <select
-                        value={selectedServiceFilter}
-                        onChange={(e) => setSelectedServiceFilter(e.target.value)}
-                        className="px-3 py-1 border border-stone-200 rounded-lg text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
-                      >
-                        <option>All</option>
-                        <option>PAN</option>
-                        <option>Passport</option>
-                        <option>Driving License</option>
-                        <option>Aadhaar</option>
-                        <option>Voter ID</option>
-                        <option>Ration Card</option>
-                        <option>Marriage Certificate</option>
-                        <option>Death Certificate</option>
-                        <option>Property Registration</option>
-                        <option>GST Registration</option>
-                        <option>MSME Registration</option>
-                        <option>PM Kisan</option>
-                        <option>Ayushman Bharat</option>
-                        <option>Scholarship Application</option>
-                        <option>Birth Certificate</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="verified"
-                      checked={showVerifiedOnly}
-                      onChange={(e) => setShowVerifiedOnly(e.target.checked)}
-                      className="w-4 h-4 text-emerald-600 bg-white border-stone-300 rounded focus:ring-emerald-500"
-                    />
-                    <label htmlFor="verified" className="text-sm text-stone-700 cursor-pointer">
-                      Show only verified centers
-                    </label>
-                  </div>
+                <div className="rounded-2xl bg-white border border-emerald-100 px-4 py-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-emerald-700">Jharkhand quick PINs:</span>
+                  {["826001", "834001", "831001"].map((pin) => (
+                    <button
+                      key={pin}
+                      onClick={() => handleJharkhandPinClick(pin)}
+                      className="text-xs px-3 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 cursor-pointer hover:bg-emerald-100 transition-colors"
+                    >
+                      {pin}
+                    </button>
+                  ))}
+                  <span className="text-xs text-stone-400 ml-auto">Enter any Jharkhand PIN to auto-load schemes</span>
                 </div>
               </div>
             </div>
           </Reveal>
 
-          {/* Map and Centers */}
+          {/* Schemes discovery section */}
+          <Reveal delay={0.18} className="mb-12">
+            <div className="max-w-4xl mx-auto bg-white rounded-3xl p-6 border border-stone-100">
+              <p className="text-xs text-emerald-700 uppercase tracking-widest font-medium mb-2">Schemes Available in Your Area</p>
+              <h3 className="font-serif text-2xl font-normal text-stone-900 mb-4">
+                {detectedState ? `📍 ${detectedState}` : "📍 Detect your state to explore schemes"}
+              </h3>
+
+              {isLocationLoading ? (
+                <div className="py-6 text-sm text-stone-500">Loading schemes...</div>
+              ) : schemesData && Object.keys(schemesData).length > 0 ? (
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-sm font-medium text-stone-800 mb-3">🔥 Recommended</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {recommendedSchemes.map((scheme) => (
+                        <div key={scheme.id} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 cursor-pointer" onClick={() => handleApplyScheme(scheme, scheme.category)}>
+                          <p className="text-sm font-semibold text-emerald-900">{scheme.name}</p>
+                          <p className="text-xs text-emerald-700 mt-1">{scheme.category}</p>
+                          <p className="text-xs text-stone-600 mt-2">Benefit: {scheme.benefit}</p>
+                          <p className="text-xs text-stone-600">Eligibility: {scheme.eligibility}</p>
+                          <p className="text-xs text-stone-600">Mode: {scheme.mode}</p>
+                          <p className="text-xs text-stone-700 mt-1">⭐ {scheme.rating}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {Object.entries(schemesData).map(([category, schemes]) => (
+                    <div key={category}>
+                      <p className="text-base font-medium text-stone-900 mb-3">
+                        {category === "Agriculture" ? "🌾" : category === "Health" ? "🏥" : category === "Education" ? "🎓" : category === "Women" ? "👩" : "💼"} {category}
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {schemes.map((scheme) => (
+                          <div key={scheme.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-4 cursor-pointer hover:border-emerald-300 transition-colors" onClick={() => handleApplyScheme(scheme, category)}>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-stone-900">{scheme.name}</p>
+                              <div className="flex gap-1">
+                                {scheme.rating >= 4.7 && (
+                                  <span className="text-[10px] px-2 py-1 rounded-full bg-amber-100 text-amber-700">Popular</span>
+                                )}
+                                {scheme.mode.toLowerCase().includes("online") && (
+                                  <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Easy Apply</span>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-xs text-stone-600 mt-2">Benefit: {scheme.benefit}</p>
+                            <p className="text-xs text-stone-600">Eligibility: {scheme.eligibility}</p>
+                            <p className="text-xs text-stone-600">Mode: {scheme.mode}</p>
+                            <p className="text-xs text-stone-700 mt-1">⭐ {scheme.rating}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : detectedState || locationQuery ? (
+                <div className="py-6 text-sm text-stone-500">No schemes found for this input.</div>
+              ) : (
+                <div className="py-6 text-sm text-stone-500">Use location or search by city/PIN to discover schemes.</div>
+              )}
+            </div>
+          </Reveal>
+
+          {/* Interactive India map + region info */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Map Placeholder */}
             <Reveal delay={0.2}>
-              <div className="bg-stone-100 rounded-3xl p-6 border border-stone-200 h-96 lg:h-[500px] relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-stone-100 opacity-50"></div>
-                <div className="relative h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <svg className="w-16 h-16 text-emerald-600 mx-auto mb-4" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
-                    <p className="text-stone-600 font-medium mb-2">Interactive Map</p>
-                    <p className="text-sm text-stone-500">Nearby centers will appear here</p>
+              <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-3xl p-6 border border-stone-700 h-96 lg:h-[500px] relative overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,153,0.22),transparent_42%)]" />
+                <div className="relative h-full">
+                  <p className="text-xs uppercase tracking-widest text-emerald-300 mb-2">Interactive India Map</p>
+                  <p className="text-sm text-stone-300 mb-4">Click on <span className="text-emerald-300 font-medium">Jharkhand</span> to view state schemes</p>
+                  <div className="h-[88%] bg-white/5 border border-white/10 rounded-2xl p-2">
+                    <IndiaSchemesMap
+                      detectedState={detectedState}
+                      onSelectJharkhand={() => handleFetchSchemesByState("Jharkhand")}
+                    />
                   </div>
                 </div>
-                {/* Mock pins */}
-                {nearbyCenters.slice(0, 4).map((center, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`absolute w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer ${
-                      center.type === 'CSC' ? 'bg-blue-500' :
-                      center.type === 'Government' ? 'bg-green-500' : 'bg-orange-500'
-                    }`}
-                    style={{
-                      left: `${20 + index * 15}%`,
-                      top: `${30 + index * 10}%`
-                    }}
-                  >
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-stone-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                      {center.name.split(' - ')[0]}
-                    </div>
-                  </motion.div>
-                ))}
               </div>
             </Reveal>
 
-            {/* Centers List */}
             <Reveal delay={0.3}>
               <div className="space-y-4 max-h-96 lg:max-h-[500px] overflow-y-auto">
-                {nearbyCenters.length === 0 ? (
-                  <div className="text-center py-12">
-                    <svg className="w-12 h-12 text-stone-400 mx-auto mb-4" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
-                    <p className="text-stone-500">Click "Use my location" to find nearby centers</p>
+                <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+                  <p className="text-xs uppercase tracking-widest text-emerald-700 font-medium mb-2">State Discovery</p>
+                  <h3 className="font-serif text-2xl text-stone-900 mb-3">{detectedState || "No State Selected"}</h3>
+                  <p className="text-sm text-stone-500 leading-relaxed">
+                    Select Jharkhand on the map, use "Use my location", or enter a valid Jharkhand PIN (826001, 834001, 831001).
+                  </p>
+                </div>
+                <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+                  <p className="text-xs uppercase tracking-widest text-stone-400 font-medium mb-3">Quick Actions</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    <button onClick={() => handleFetchSchemesByState("Jharkhand")} className="w-full text-left px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-sm font-medium cursor-pointer hover:bg-emerald-100 transition-colors">
+                      Open Jharkhand Schemes
+                    </button>
+                    <button onClick={() => handleJharkhandPinClick("826001")} className="w-full text-left px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-700 text-sm cursor-pointer hover:bg-stone-100 transition-colors">
+                      Search by PIN: 826001 (Dhanbad)
+                    </button>
+                    <button onClick={() => handleJharkhandPinClick("834001")} className="w-full text-left px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-700 text-sm cursor-pointer hover:bg-stone-100 transition-colors">
+                      Search by PIN: 834001 (Ranchi)
+                    </button>
                   </div>
-                ) : (
-                  nearbyCenters
-                    .filter(center => !showVerifiedOnly || center.verified)
-                    .filter(center => selectedServiceFilter === 'All' || center.services.includes(selectedServiceFilter))
-                    .map((center, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-lg font-medium text-stone-900">{center.name}</h3>
-                              {center.verified && (
-                                <div className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full font-medium">
-                                  ✓ Verified
-                                </div>
-                              )}
-                            </div>
-                            <p className="text-sm text-stone-500 mb-2">{center.distance} away</p>
-                            <p className="text-sm text-stone-600">{center.address}</p>
-                          </div>
-                          <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            center.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            {center.status}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div>
-                            <p className="text-xs text-stone-500 uppercase tracking-wide mb-1">Services</p>
-                            <div className="flex flex-wrap gap-1">
-                              {center.services.slice(0, 3).map(service => (
-                                <span key={service} className="text-xs bg-stone-100 text-stone-700 px-2 py-1 rounded">
-                                  {service}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs text-stone-500 uppercase tracking-wide mb-1">Rating</p>
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm font-medium text-stone-900">{center.rating}</span>
-                              <svg className="w-4 h-4 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-stone-500 uppercase tracking-wide mb-1">Waiting Time</p>
-                            <p className="text-sm font-medium text-stone-900">{center.waitingTime}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              className="bg-stone-100 text-stone-700 text-sm rounded-lg px-4 py-2 cursor-pointer border-none hover:bg-stone-200 transition-colors"
-                            >
-                              Call Now
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              className="bg-emerald-700 text-white text-sm rounded-lg px-4 py-2 cursor-pointer border-none hover:bg-emerald-800 transition-colors"
-                            >
-                              Get Directions
-                            </motion.button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))
-                )}
+                </div>
               </div>
             </Reveal>
           </div>

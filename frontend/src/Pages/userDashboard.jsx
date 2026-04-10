@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getApplications } from "../utils/applications";
 
 /* ── fonts ── */
 const FontLink = () => (
@@ -154,7 +155,7 @@ function SpeakerIcon() {
 }
 
 /* ─────────── OVERVIEW PANEL ─────────── */
-function OverviewPanel({ setActiveTab }) {
+function OverviewPanel({ setActiveTab, forms }) {
   return (
     <div className="flex flex-col gap-6">
       {/* greeting */}
@@ -163,7 +164,7 @@ function OverviewPanel({ setActiveTab }) {
         <div className="absolute -right-2 bottom-0 w-24 h-24 rounded-full bg-white/5" />
         <p className="text-emerald-200 text-xs font-medium uppercase tracking-widest mb-1">Good morning</p>
         <h2 className="font-serif text-2xl font-normal mb-1">Namaste, Rahul 🙏</h2>
-        <p className="text-emerald-200 text-sm font-light">You have 3 active applications. 1 needs your attention.</p>
+        <p className="text-emerald-200 text-sm font-light">You have {forms.length} active applications.</p>
         <button
           onClick={() => setActiveTab("forms")}
           className="mt-4 bg-white/15 border border-white/20 text-white text-xs font-medium px-4 py-2 rounded-xl cursor-pointer hover:bg-white/25 transition-colors">
@@ -192,7 +193,7 @@ function OverviewPanel({ setActiveTab }) {
           <button onClick={() => setActiveTab("forms")} className="text-xs text-emerald-700 cursor-pointer bg-transparent border-none font-medium">View all</button>
         </div>
         <div className="flex flex-col gap-2">
-          {ACTIVE_FORMS.map(f => {
+          {forms.map(f => {
             const c = COLOR_MAP[f.color];
             return (
               <div key={f.id} className={`rounded-xl border p-4 ${c.bg} ${c.border}`}>
@@ -395,7 +396,7 @@ function FormCard({ form }) {
 }
 
 /* ─────────── FORMS PANEL ─────────── */
-function FormsPanel() {
+function FormsPanel({ forms }) {
   return (
     <div>
       <div className="mb-5">
@@ -403,7 +404,7 @@ function FormsPanel() {
         <h2 className="font-serif text-2xl font-normal text-stone-900">Track & Download</h2>
       </div>
       <div className="flex flex-col gap-4">
-        {ACTIVE_FORMS.map(f => <FormCard key={f.id} form={f} />)}
+        {forms.map(f => <FormCard key={f.id} form={f} />)}
       </div>
     </div>
   );
@@ -614,7 +615,7 @@ function ChatbotPanel() {
 }
 
 /* ─────────── PROFILE PANEL ─────────── */
-function ProfilePanel() {
+function ProfilePanel({ onSignOut }) {
   const [lang, setLang] = useState(USER.language);
   const [editing, setEditing] = useState(false);
 
@@ -685,11 +686,13 @@ function ProfilePanel() {
       {/* actions */}
       <div className="flex flex-col gap-2">
         {[
-          { label: "Download all documents", color: "text-stone-700 bg-white border-stone-200 hover:border-stone-300" },
-          { label: "Privacy & Data settings", color: "text-stone-700 bg-white border-stone-200 hover:border-stone-300" },
-          { label: "Sign out",                color: "text-rose-600 bg-rose-50 border-rose-100 hover:border-rose-300"  },
+          { label: "Download all documents", color: "text-stone-700 bg-white border-stone-200 hover:border-stone-300", action: null },
+          { label: "Privacy & Data settings", color: "text-stone-700 bg-white border-stone-200 hover:border-stone-300", action: null },
+          { label: "Sign out", color: "text-rose-600 bg-rose-50 border-rose-100 hover:border-rose-300", action: onSignOut },
         ].map(a => (
-          <button key={a.label}
+          <button
+            key={a.label}
+            onClick={a.action || undefined}
             className={`w-full py-3 rounded-xl border text-sm font-medium cursor-pointer transition-colors ${a.color}`}>
             {a.label}
           </button>
@@ -700,16 +703,33 @@ function ProfilePanel() {
 }
 
 /* ─────────── MAIN DASHBOARD ─────────── */
-export default function Dashboard() {
+export default function Dashboard({ onSignOut, auth }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [forms, setForms] = useState(ACTIVE_FORMS);
+
+  useEffect(() => {
+    const apps = getApplications()
+      .filter((app) => !auth?.userId || app.userId === auth.userId)
+      .map((app, idx) => ({
+        id: app.id,
+        title: app.schemeName,
+        category: app.category || "General",
+        color: ["sky", "rose", "amber", "emerald"][idx % 4],
+        progress: app.progress || 20,
+        status: app.status || "Pending",
+        filed: app.filed || "-",
+        steps: app.timeline || []
+      }));
+    if (apps.length) setForms(apps);
+  }, [auth?.userId]);
 
   const panels = {
-    overview:   <OverviewPanel setActiveTab={setActiveTab} />,
+    overview:   <OverviewPanel setActiveTab={setActiveTab} forms={forms} />,
     procedures: <ProceduresPanel />,
-    forms:      <FormsPanel />,
+    forms:      <FormsPanel forms={forms} />,
     chatbot:    <ChatbotPanel />,
-    profile:    <ProfilePanel />,
+    profile:    <ProfilePanel onSignOut={onSignOut} />,
   };
 
   return (
@@ -842,6 +862,12 @@ export default function Dashboard() {
               onClick={() => setActiveTab("profile")}
               className="w-9 h-9 rounded-xl bg-emerald-700 text-white text-xs font-serif font-medium flex items-center justify-center cursor-pointer border-none hover:bg-emerald-800 transition-colors shrink-0">
               {USER.avatar}
+            </button>
+            <button
+              onClick={onSignOut}
+              className="hidden sm:block px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-medium cursor-pointer hover:border-rose-300 transition-colors"
+            >
+              Sign out
             </button>
           </header>
 
