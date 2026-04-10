@@ -64,6 +64,7 @@ function App() {
   return (
     <Routes>
      <Route path="/" element={<HomePage isAuthenticated={auth.isAuthenticated} role={auth.role} onAuthSuccess={handleAuthSuccess} onSignOut={handleSignOut} />} />
+     <Route path="/login" element={<HomePage isAuthenticated={auth.isAuthenticated} role={auth.role} onAuthSuccess={handleAuthSuccess} onSignOut={handleSignOut} openLoginOnMount />} />
      <Route path="/dashboard" element={auth.isAuthenticated && auth.role === 'user' ? <Dashboard onSignOut={handleSignOut} auth={auth} /> : <Navigate to="/" replace />} />
      <Route path="/admin" element={auth.isAuthenticated && auth.role === 'admin' ? <AdminDashboard onSignOut={handleSignOut} /> : <Navigate to="/" replace />} />
      <Route path="/apply/:schemeId" element={auth.isAuthenticated && auth.role === 'user' ? <SchemeApplicationPage auth={auth} /> : <Navigate to="/" replace />} />

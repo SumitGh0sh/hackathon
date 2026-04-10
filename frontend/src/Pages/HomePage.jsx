@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, useInView, useScroll, useTransform, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { MapContainer, TileLayer, Polygon, Popup, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -439,7 +439,62 @@ const STEPS = [
   { n: "03", title: "Follow Your Steps",  body: "A clear checklist shows which documents to gather, which office to visit, and in what order." },
 ];
 
-const LANGUAGES = ["हिंदी","English","বাংলা","தமிழ்","తెలుగు","मराठी","ਪੰਜਾਬੀ","ગુજરાતી","ಕನ್ನಡ","മലയാളം"];
+const CHAT_SUGGESTIONS = [
+  "Apply for Aadhaar",
+  "PAN card status",
+  "Driving license",
+  "Passport apply",
+];
+
+const SERVICE_GUIDE = {
+  income_certificate: {
+    key: "income_certificate",
+    slug: "income-certificate",
+    label: "Income Certificate",
+    documents: ["Aadhaar Card", "Address Proof", "Income Proof", "Passport size photo"],
+    eligibility: "Available for residents who need official income verification from the local authority.",
+    processingTime: "7–10 business days",
+    keywords: ["income certificate", "income", "certificate", "apply"],
+  },
+  pan_card: {
+    key: "pan_card",
+    slug: "pan-card",
+    label: "PAN Card",
+    documents: ["Aadhaar Card", "Photo", "Address Proof", "Identity Proof"],
+    eligibility: "For individuals seeking a permanent account number for taxation and banking.",
+    processingTime: "5–7 business days",
+    keywords: ["pan card", "pan", "status", "documents"],
+  },
+  driving_license: {
+    key: "driving_license",
+    slug: "driving-license",
+    label: "Driving License",
+    documents: ["Aadhaar Card", "Medical Certificate", "Address Proof", "Passport size photo"],
+    eligibility: "For eligible drivers applying for a new license or renewal.",
+    processingTime: "7–14 business days",
+    keywords: ["driving license", "driving", "license", "apply"],
+  },
+  passport: {
+    key: "passport",
+    slug: "passport",
+    label: "Passport",
+    documents: ["Aadhaar Card", "Address Proof", "Birth Certificate", "Passport size photo"],
+    eligibility: "For Indian citizens applying for a new passport or renewal.",
+    processingTime: "15–30 business days",
+    keywords: ["passport", "apply passport", "documents"],
+  },
+  aadhaar_card: {
+    key: "aadhaar_card",
+    slug: "aadhaar-card",
+    label: "Aadhaar Card",
+    documents: ["Proof of Identity", "Proof of Address", "Birth Proof", "Passport size photo"],
+    eligibility: "For all residents who need a unique identity number for government services.",
+    processingTime: "1–3 business days",
+    keywords: ["aadhaar", "aadhaar card", "uidai", "apply"],
+  },
+};
+
+const LANGUAGES = ["हिंदी","English","বাংলা","தமிழ்","తెలుగు","मराठी","ਪੰਜਾਬੀ","ગુજરાતી","ಕನ್ನಡ","മലയാളం"];
 const PLACEHOLDERS = [
   "Apply for a ration card…",
   "Understand my land notice…",
@@ -647,16 +702,248 @@ function AuthModal({ open, onClose, mode, setMode, onAuthSuccess, onOpenAdminDet
   );
 }
 
+function DocumentLineIcon() {
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100" aria-hidden>
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <path d="M16 13H8" />
+        <path d="M16 17H8" />
+        <path d="M10 9H8" />
+      </svg>
+    </span>
+  );
+}
+
+/* Structured service card shown under assistant messages when intent matches */
+function ServiceResponseCard({ service, onApply }) {
+  if (!service) return null;
+  const { label, documents, eligibility, processingTime } = service;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="mt-3 w-full max-w-[min(100%,22rem)] rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-700">Service</p>
+          <h3 className="font-serif text-lg font-medium leading-snug text-stone-900">{label}</h3>
+        </div>
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-800 border border-emerald-100">
+          Guide
+        </span>
+      </div>
+
+      <div className="mb-4">
+        <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-stone-500">Required documents</p>
+        <ul className="space-y-2.5">
+          {documents.map((doc) => (
+            <li key={doc} className="flex items-center gap-3 text-sm text-stone-800">
+              <DocumentLineIcon />
+              <span className="leading-snug">{doc}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {(eligibility || processingTime) && (
+        <div className="mb-4 space-y-2 rounded-xl bg-stone-50 px-3 py-3 text-xs text-stone-600 border border-stone-100">
+          {processingTime && (
+            <p>
+              <span className="font-medium text-stone-700">Processing time: </span>
+              {processingTime}
+            </p>
+          )}
+          {eligibility && (
+            <p>
+              <span className="font-medium text-stone-700">Eligibility: </span>
+              {eligibility}
+            </p>
+          )}
+        </div>
+      )}
+
+      <motion.button
+        type="button"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onApply?.(service.key)}
+        className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-medium text-white border-none cursor-pointer hover:bg-emerald-800 transition-colors"
+        style={{ boxShadow: "0 4px 16px rgba(5,150,105,0.3)" }}>
+        Apply with SaathiSeva
+      </motion.button>
+    </motion.div>
+  );
+}
+
+/* ─── hero chatbot (reusable UI) ─────────────────────────────── */
+function HeroChatbot({
+  suggestions,
+  messages,
+  serviceCard,
+  isTyping,
+  inputValue,
+  onInputChange,
+  onSend,
+  onSuggestionClick,
+  onApplyClick,
+}) {
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [messages, isTyping]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.7, delay: 0.26, ease: [0.22, 1, 0.36, 1] }}
+      className="search-shadow bg-white border border-stone-200 rounded-3xl p-4 sm:p-6 mb-5 w-full max-w-2xl">
+      <div className="flex flex-col gap-4 sm:gap-5">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => onSuggestionClick(suggestion)}
+              className="text-xs sm:text-sm text-stone-700 bg-emerald-50 border border-emerald-100 rounded-full px-3.5 sm:px-4 py-2 hover:bg-emerald-100 hover:text-emerald-800 transition-colors">
+              {suggestion}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2 sm:gap-3 items-center">
+          <input
+            value={inputValue}
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onSend();
+              }
+            }}
+            placeholder="Ask about any government form or service..."
+            aria-label="Ask about government forms or services"
+            className="flex-1 min-w-0 bg-stone-50 border border-stone-200 rounded-2xl px-4 sm:px-5 py-3 sm:py-3.5 text-sm text-stone-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100/80 transition-[box-shadow,border-color]"
+          />
+          <motion.button
+            type="button"
+            whileHover={inputValue.trim() ? { scale: 1.03 } : {}}
+            whileTap={inputValue.trim() ? { scale: 0.96 } : {}}
+            onClick={onSend}
+            disabled={!inputValue.trim()}
+            aria-label="Send message"
+            className={`shrink-0 h-11 w-11 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl flex items-center justify-center border-none transition-colors ${
+              inputValue.trim()
+                ? "bg-emerald-700 text-white hover:bg-emerald-800"
+                : "bg-stone-200 text-stone-400 cursor-not-allowed"
+            }`}
+            style={
+              inputValue.trim()
+                ? { boxShadow: "0 4px 14px rgba(5,150,105,0.28)" }
+                : undefined
+            }>
+            <svg
+              className="w-[18px] h-[18px] -translate-x-px translate-y-px"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden>
+              <path d="M22 2L11 13" />
+              <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
+          </motion.button>
+        </div>
+
+        <div
+          className="min-h-[140px] max-h-[min(44vh,320px)] sm:max-h-[272px] overflow-y-auto overflow-x-hidden rounded-2xl border border-stone-100 bg-stone-50 p-3 sm:p-4 space-y-3 scroll-smooth"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions">
+          <AnimatePresence initial={false}>
+            {messages.map((message) => (
+              <motion.div
+                key={message.id}
+                layout
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                className={`flex w-full min-w-0 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"} max-w-[min(100%,22rem)] sm:max-w-[90%]`}>
+                  <div
+                    className={`px-4 py-3 rounded-2xl text-sm leading-6 shadow-sm ${
+                      message.role === "user"
+                        ? "bg-emerald-700 text-white rounded-br-md rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl"
+                        : "bg-white text-stone-800 rounded-bl-md rounded-tr-2xl rounded-tl-2xl rounded-br-2xl border border-stone-100"
+                    }`}>
+                    {message.text}
+                  </div>
+                  {message.role === "assistant" && message.card && (
+                    <ServiceResponseCard service={message.card} onApply={onApplyClick} />
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {isTyping && (
+              <motion.div
+                key="typing"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.22 }}
+                className="flex justify-start">
+                <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white text-stone-500 border border-stone-100 text-sm leading-6 shadow-sm">
+                  <span className="flex gap-1" aria-hidden>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/90 animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/90 animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/90 animate-bounce [animation-delay:300ms]" />
+                  </span>
+                  <span>AI is typing...</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div ref={endRef} className="h-0 w-full" aria-hidden />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 /* ─── main ────────────────────────────────────────────────────── */
 export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSignOut }) {
   const navigate = useNavigate();
-  const [query,     setQuery]     = useState("");
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: "welcome",
+      role: "assistant",
+      text: "Hi there! Ask about any government form or service and I’ll help you get started.",
+    },
+  ]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [serviceResponse, setServiceResponse] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(!!isAuthenticated);
   const [langOpen,  setLangOpen]  = useState(false);
   const [selLang,   setSelLang]   = useState("English");
   const [modal,     setModal]     = useState(false);
   const [mode,      setMode]      = useState("Login");
   const [mobileNav, setMobileNav] = useState(false);
-  const typed = useTyping(PLACEHOLDERS);
+
+  useEffect(() => {
+    setIsLoggedIn(!!isAuthenticated);
+  }, [isAuthenticated]);
 
   // Estimator state
   const [estimatorQuery, setEstimatorQuery] = useState("");
@@ -664,6 +951,8 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
   const [isUrgent, setIsUrgent] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [checkedDocs, setCheckedDocs] = useState({});
+  const [showCompare, setShowCompare] = useState(false);
 
   // Apply Near You state
   const [locationQuery, setLocationQuery] = useState("");
@@ -674,6 +963,111 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
   const { scrollY } = useScroll();
   const navShadow = useTransform(scrollY, [0, 60],
     ["0 0 0 rgba(0,0,0,0)", "0 2px 24px rgba(0,0,0,0.07)"]);
+
+  // Function to format date in readable format
+  const formatDateReadable = (date) => {
+    return date.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  };
+
+  // Function to calculate estimated delivery date
+  const getEstimatedDeliveryDate = (isUrgent) => {
+    const today = new Date();
+    // Same date range for both Normal and Urgent
+    const minDays = 7;
+    const maxDays = 10;
+    const minDate = new Date(today);
+    const maxDate = new Date(today);
+    minDate.setDate(today.getDate() + minDays);
+    maxDate.setDate(today.getDate() + maxDays);
+    return `${formatDateReadable(minDate)} – ${formatDateReadable(maxDate)}`;
+  };
+
+  const detectServiceIntent = (question) => {
+    const normalized = question.trim().toLowerCase();
+    if (!/\b(apply|documents|required|eligibility|certificate|license|passport|pan|aadhaar|income|status)\b/.test(normalized)) {
+      return null;
+    }
+
+    const matchedKey = Object.keys(SERVICE_GUIDE).find((key) =>
+      SERVICE_GUIDE[key].keywords.some((term) => normalized.includes(term))
+    );
+
+    if (matchedKey) return matchedKey;
+    if (/\bincome certificate\b/.test(normalized) || (/\bincome\b/.test(normalized) && /\bcertificate\b/.test(normalized))) return "income_certificate";
+    if (normalized.includes("passport")) return "passport";
+    if (normalized.includes("pan")) return "pan_card";
+    if (normalized.includes("driving") || normalized.includes("license")) return "driving_license";
+    if (normalized.includes("aadhaar")) return "aadhaar_card";
+    return null;
+  };
+
+  const getAiResponse = (question, serviceKey) => {
+    if (serviceKey && SERVICE_GUIDE[serviceKey]) {
+      const service = SERVICE_GUIDE[serviceKey];
+      let procedure = "";
+      if (serviceKey === "income_certificate") {
+        procedure = `Here's the step-by-step procedure to apply for an Income Certificate:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Visit your local municipal office or tehsil office.\n3. Fill out the income certificate application form.\n4. Submit the form along with your documents and pay any applicable fee.\n5. Collect your certificate after verification (usually ${service.processingTime}).\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+      } else if (serviceKey === "pan_card") {
+        procedure = `Here's the step-by-step procedure to apply for a PAN Card:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Apply online through the NSDL website or authorized centers.\n3. Fill the online application form with your details.\n4. Upload scanned documents and submit.\n5. Pay the application fee and track your application status.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+      } else if (serviceKey === "driving_license") {
+        procedure = `Here's the step-by-step procedure to apply for a Driving License:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Pass the learner's license test if you don't have one.\n3. Apply at your local RTO (Regional Transport Office).\n4. Complete the driving test and submit documents.\n5. Collect your license after approval.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+      } else if (serviceKey === "passport") {
+        procedure = `Here's the step-by-step procedure to apply for a Passport:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Apply online through the Passport Seva website.\n3. Book an appointment at a Passport Seva Kendra.\n4. Visit the center with documents for verification.\n5. Collect your passport after processing.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+      } else if (serviceKey === "aadhaar_card") {
+        procedure = `Here's the step-by-step procedure to apply for an Aadhaar Card:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Visit the nearest Aadhaar enrollment center.\n3. Fill the enrollment form and provide biometrics.\n4. Submit documents for verification.\n5. Collect your Aadhaar card after processing.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+      }
+      return procedure;
+    }
+
+    const normalized = question.trim().toLowerCase();
+    if (/aadhaar/.test(normalized)) {
+      return "For Aadhaar, you can apply online or visit the nearest enrollment centre. Keep your address proof and photo ready.";
+    }
+    if (/pan/.test(normalized)) {
+      return "PAN status updates are available on the NSDL/TIN portal. Enter your application number, or I can help list the documents needed for a fresh PAN request.";
+    }
+    if (/driving|license/.test(normalized)) {
+      return "Driving license processing usually needs a learner licence, medical certificate and address proof. I can guide you through the state-specific steps.";
+    }
+    if (/passport/.test(normalized)) {
+      return "To apply for a passport, prepare Aadhaar, address proof and photos. I can help you check which category and documents apply to you.";
+    }
+    return "Great question — most government services need ID, address proof and the right application form. Tell me which one you want, and I'll give you the next step.";
+  };
+
+  const sendChatMessage = (message) => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    const userId = `u-${Date.now()}`;
+    setChatMessages((prev) => [...prev, { id: userId, role: "user", text: trimmed }]);
+    setChatInput("");
+    setIsTyping(true);
+
+    const serviceKey = detectServiceIntent(trimmed);
+    const serviceCard = serviceKey ? { key: serviceKey, ...SERVICE_GUIDE[serviceKey] } : null;
+
+    window.setTimeout(() => {
+      const reply = getAiResponse(trimmed, serviceKey);
+      setChatMessages((prev) => [
+        ...prev,
+        { id: `a-${Date.now()}`, role: "assistant", text: reply },
+      ]);
+      setServiceResponse(serviceCard);
+      setIsTyping(false);
+    }, 900);
+  };
+
+  const sendCurrentChatInput = () => sendChatMessage(chatInput);
+
+  const handleApplyService = (serviceKey) => {
+    if (!serviceKey) return;
+    if (isLoggedIn) {
+      navigate(`/apply/${SERVICE_GUIDE[serviceKey].slug}`);
+    } else {
+      setMode("Register");
+      setModal(true);
+    }
+  };
 
   const openLogin = () => { setMode("Login");    setModal(true); };
   const openReg   = () => { setMode("Register"); setModal(true); };
@@ -968,47 +1362,17 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                 Upload any government document or describe your situation — our AI decodes the language and walks you through every step, in your language.
               </motion.p>
 
-              {/* search bar */}
-              <motion.div
-                initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.26 }}
-                className="search-shadow flex items-center bg-white border border-stone-200 rounded-2xl pl-4 pr-1.5 py-1.5 mb-5 w-full max-w-lg">
-                <svg className="w-4 h-4 text-stone-300 shrink-0 mr-3" viewBox="0 0 18 18" fill="none">
-                  <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.5"/>
-                  <path d="M12.5 12.5L16 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-                <input value={query} onChange={e => setQuery(e.target.value)}
-                  placeholder={typed}
-                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-stone-800" />
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  className="btn-shadow shrink-0 bg-emerald-700 text-white text-sm font-medium rounded-xl px-5 py-3 cursor-pointer border-none hover:bg-emerald-800 transition-colors">
-                  Search
-                </motion.button>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-                className="flex flex-wrap items-center gap-3">
-                <button
-                  className="flex items-center gap-2 text-sm text-stone-600 border border-stone-200 rounded-xl px-4 py-2.5 bg-white cursor-pointer hover:border-emerald-600 hover:text-emerald-700 transition-colors"
-                  style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 1v9M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M1 13h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-                  </svg>
-                  Upload document
-                </button>
-                <span className="text-stone-300 text-sm">or</span>
-                <button className="flex items-center gap-2 text-sm text-stone-500 cursor-pointer bg-transparent border-none hover:text-emerald-700 transition-colors p-0">
-                  <span className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
-                    <svg className="w-3.5 h-3.5 text-emerald-700" viewBox="0 0 14 14" fill="none">
-                      <rect x="4" y="1" width="6" height="8" rx="3" stroke="currentColor" strokeWidth="1.3"/>
-                      <path d="M2 7.5a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                      <path d="M7 12.5v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                    </svg>
-                  </span>
-                  Speak your problem
-                </button>
-              </motion.div>
+              <HeroChatbot
+                suggestions={CHAT_SUGGESTIONS}
+                messages={chatMessages}
+                serviceCard={serviceResponse}
+                isTyping={isTyping}
+                inputValue={chatInput}
+                onInputChange={setChatInput}
+                onSend={sendCurrentChatInput}
+                onSuggestionClick={sendChatMessage}
+                onApplyClick={handleApplyService}
+              />
             </div>
 
             {/* right — floating card mockup */}
@@ -1268,19 +1632,19 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                       </div>
                     </div>
 
-                    {/* Cost Breakdown */}
+                    {/* Cost Breakdown & Comparison */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                      <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
+                      <div className={`rounded-2xl p-6 border ${isUrgent ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                            <svg className="w-5 h-5 text-emerald-700" viewBox="0 0 20 20" fill="none">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isUrgent ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+                            <svg className={`w-5 h-5 ${isUrgent ? 'text-amber-700' : 'text-emerald-700'}`} viewBox="0 0 20 20" fill="none">
                               <path d="M10 1v3m0 0l-3-3m3 3l3-3m-6 6h6m-6 4h6m-6 4h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                             </svg>
                           </div>
                           <div>
-                            <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">Total Cost</p>
-                            <p className="text-2xl font-serif font-normal text-emerald-800">
-                              ₹{isUrgent ? Math.round(selectedService.cost * 1.3) : selectedService.cost}
+                            <p className={`text-xs font-medium uppercase tracking-wide ${isUrgent ? 'text-amber-700' : 'text-emerald-700'}`}>Total Cost</p>
+                            <p className={`text-2xl font-serif font-normal ${isUrgent ? 'text-amber-800' : 'text-emerald-800'}`}>
+                              ₹{isUrgent ? Math.round(selectedService.cost * 1.2) : selectedService.cost}
                               {isUrgent && <span className="text-sm text-amber-600 ml-2">⚡</span>}
                             </p>
                           </div>
@@ -1297,9 +1661,9 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                             </div>
                           )}
                           {isUrgent && (
-                            <div className="flex justify-between">
+                            <div className="flex justify-between border-t border-amber-200 pt-2 mt-2">
                               <span className="text-stone-600">Urgent Processing Fee</span>
-                              <span className="font-medium text-amber-600">₹{Math.round(selectedService.cost * 0.3)}</span>
+                              <span className="font-medium text-amber-600">₹{Math.round(selectedService.cost * 0.2)}</span>
                             </div>
                           )}
                         </div>
@@ -1321,9 +1685,17 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                             </p>
                           </div>
                         </div>
-                        <p className="text-sm text-stone-600">
-                          {isUrgent ? "Fast Processing ⚡" : "Standard processing time"}
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-sm text-stone-600">
+                            {isUrgent ? "Fast Processing ⚡" : "Standard processing time"}
+                          </p>
+                          <div className="pt-2 border-t border-blue-200">
+                            <p className="text-xs text-blue-700 font-medium uppercase tracking-wide mb-1">Estimated Delivery</p>
+                            <p className="text-sm font-medium text-blue-800">
+                              {getEstimatedDeliveryDate(isUrgent)}
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="bg-purple-50 rounded-2xl p-6 border border-purple-100">
@@ -1339,13 +1711,101 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                             <p className="text-lg font-medium text-purple-800">{selectedService.documents.length} required</p>
                           </div>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           {selectedService.documents.map((doc, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
-                              <span className="text-sm text-stone-600">{doc}</span>
+                            <div key={index} className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={checkedDocs[doc] || false}
+                                onChange={(e) => setCheckedDocs({...checkedDocs, [doc]: e.target.checked})}
+                                className="w-4 h-4 rounded accent-purple-600 cursor-pointer"
+                              />
+                              <span className={`text-sm flex-1 ${checkedDocs[doc] ? 'line-through text-stone-400' : 'text-stone-600'}`}>
+                                {doc}
+                              </span>
+                              {checkedDocs[doc] && <span className="text-green-600 text-sm">✓</span>}
                             </div>
                           ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Important Information Section */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
+                      <h3 className="text-lg font-medium text-stone-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600" viewBox="0 0 20 20" fill="none">
+                          <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/>
+                          <path d="M10 6v4M10 14v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        Important Information
+                      </h3>
+
+                      <div className="space-y-4">
+                        {/* Why Urgent Costs More */}
+                        <div className="bg-white rounded-lg p-4 border border-blue-200">
+                          <p className="text-sm font-medium text-stone-800 mb-2 flex items-center gap-2">
+                            <span className="text-amber-500">💰</span>
+                            Why Urgent Processing Costs +20%?
+                          </p>
+                          <ul className="text-xs text-stone-600 space-y-1 ml-6">
+                            <li>• Dedicated priority queue - skip waiting lines</li>
+                            <li>• Additional staff assigned to your case</li>
+                            <li>• Expedited document verification & approval</li>
+                            <li>• Weekend/holiday processing if needed</li>
+                          </ul>
+                        </div>
+
+                        {/* Processing Time Factors */}
+                        <div className="bg-white rounded-lg p-4 border border-blue-200">
+                          <p className="text-sm font-medium text-stone-800 mb-2 flex items-center gap-2">
+                            <span className="text-blue-500">⏱️</span>
+                            What Affects Processing Time?
+                          </p>
+                          <ul className="text-xs text-stone-600 space-y-1 ml-6">
+                            <li>• <strong>Document accuracy</strong> - errors cause delays (±2-5 days)</li>
+                            <li>• <strong>Field verification</strong> - varies by district/pincode</li>
+                            <li>• <strong>Government approvals</strong> - depend on current queue</li>
+                            <li>• <strong>Your responsiveness</strong> - queries slow processing</li>
+                          </ul>
+                        </div>
+
+                        {/* Did You Know */}
+                        <div className="bg-white rounded-lg p-4 border border-blue-200">
+                          <p className="text-sm font-medium text-stone-800 mb-2 flex items-center gap-2">
+                            <span className="text-green-500">💡</span>
+                            Did You Know? (Common Sense Tips)
+                          </p>
+                          <ul className="text-xs text-stone-600 space-y-1 ml-6">
+                            <li>• 89% delays are due to <strong>incomplete/incorrect documents</strong></li>
+                            <li>• Uploading docs in correct format saves 3-7 days</li>
+                            <li>• Verifying applicant details before submission = no re-processing</li>
+                            <li>• Weekend applications don't process faster (if govt closed)</li>
+                          </ul>
+                        </div>
+
+                        {/* Document Accuracy Warning */}
+                        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200">
+                          <p className="text-sm font-medium text-orange-900 mb-2 flex items-center gap-2">
+                            <span className="text-red-500">⚠️</span>
+                            Document Accuracy = No Delays
+                          </p>
+                          <p className="text-xs text-orange-800">
+                            Wrong/blurry document photos, mismatched names, or missing signatures are the #1 cause of processing extensions. Take clear photos, double-check spelling, and verify you're uploading the right file.
+                          </p>
+                        </div>
+
+                        {/* Timeline Disclaimer */}
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                          <p className="text-sm font-medium text-purple-900 mb-2 flex items-center gap-2">
+                            <span className="text-purple-600">📋</span>
+                            Estimated vs Actual Timeline
+                          </p>
+                          <p className="text-xs text-purple-800 leading-relaxed">
+                            <strong>Same timeline (7–10 days):</strong> Both Normal and Urgent processing take the same time to complete. The difference is priority handling and cost. Urgent gets faster document verification and dedicated staff attention.
+                          </p>
+                          <p className="text-xs text-purple-700 mt-2 font-medium">
+                            ✓ Timeline starts AFTER document verification, not submission.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1378,9 +1838,18 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                             </svg>
                             Success Rate: {selectedService.successRate}
                           </h4>
-                          <p className="text-sm text-stone-600 mb-4">
+                          <p className="text-sm text-stone-600 mb-3">
                             Based on 750+ successful applications this month
                           </p>
+                          <div className="mb-4">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-xs font-medium text-stone-700">Success Rate</span>
+                              <span className="text-xs font-semibold text-green-600">{parseInt(selectedService.successRate)}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-stone-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full" style={{width: `${parseInt(selectedService.successRate)}%`}}></div>
+                            </div>
+                          </div>
                           <div className="flex gap-3">
                             <motion.button
                               whileHover={{ scale: 1.02 }}
@@ -1389,7 +1858,9 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                             >
                               Apply Now
                             </motion.button>
-                            <button className="border border-stone-200 text-stone-600 text-sm rounded-xl px-6 py-2.5 cursor-pointer hover:border-emerald-500 hover:text-emerald-700 transition-colors bg-white">
+                            <button 
+                              onClick={() => setShowCompare(true)}
+                              className="border border-stone-200 text-stone-600 text-sm rounded-xl px-6 py-2.5 cursor-pointer hover:border-emerald-500 hover:text-emerald-700 transition-colors bg-white">
                               Compare Services
                             </button>
                           </div>
@@ -1399,6 +1870,187 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                   </div>
                 </motion.div>
               </Reveal>
+            )}
+          </AnimatePresence>
+
+          {/* Comparison Modal */}
+          <AnimatePresence>
+            {showCompare && selectedService && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                onClick={() => setShowCompare(false)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal Header */}
+                  <div className="sticky top-0 bg-gradient-to-r from-emerald-50 to-blue-50 border-b border-stone-100 p-6 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-serif font-normal text-stone-900">Service Comparison</h2>
+                      <p className="text-sm text-stone-500 mt-1">{Object.keys(SERVICES_DATA).find(key => SERVICES_DATA[key] === selectedService)}</p>
+                    </div>
+                    <button
+                      onClick={() => setShowCompare(false)}
+                      className="w-10 h-10 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div className="p-6 space-y-8">
+                    {/* Normal vs Urgent Comparison */}
+                    <div>
+                      <h3 className="text-lg font-medium text-stone-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600" viewBox="0 0 20 20" fill="none">
+                          <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        Normal vs Urgent
+                      </h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Normal */}
+                        <div className="bg-emerald-50 rounded-2xl p-5 border border-emerald-100">
+                          <p className="text-sm font-medium text-emerald-700 mb-4">Normal Processing</p>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-xs text-stone-600 mb-1">Cost</p>
+                              <p className="text-2xl font-serif font-normal text-emerald-800">₹{selectedService.cost}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-stone-600 mb-1">Time</p>
+                              <p className="text-lg font-medium text-stone-800">7–10 days</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-stone-600 mb-1">Delivery</p>
+                              <p className="text-sm text-stone-700">{getEstimatedDeliveryDate().split('–')[0].trim()}</p>
+                              <p className="text-xs text-stone-500">to {getEstimatedDeliveryDate().split('–')[1].trim()}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Urgent */}
+                        <div className="bg-amber-50 rounded-2xl p-5 border border-amber-100">
+                          <p className="text-sm font-medium text-amber-700 mb-4">🚀 Urgent Processing</p>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-xs text-stone-600 mb-1">Cost</p>
+                              <p className="text-2xl font-serif font-normal text-amber-800">₹{Math.round(selectedService.cost * 1.2)}</p>
+                              <p className="text-xs text-amber-600">+₹{Math.round(selectedService.cost * 0.2)} faster</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-stone-600 mb-1">Time</p>
+                              <p className="text-lg font-medium text-stone-800">1–3 days ⚡</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-stone-600 mb-1">Delivery</p>
+                              <p className="text-sm text-stone-700">{getEstimatedDeliveryDate().split('–')[0].trim()}</p>
+                              <p className="text-xs text-stone-500">to {getEstimatedDeliveryDate().split('–')[1].trim()}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cost Savings */}
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-5 border border-purple-100">
+                      <p className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
+                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
+                          <path d="M10 1L13 7h6l-5 4 2 6-6-4-6 4 2-6-5-4h6L10 1Z" stroke="currentColor" strokeWidth="1.5"/>
+                        </svg>
+                        Value Comparison
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-stone-600">Cost per day (Normal)</p>
+                          <p className="text-xl font-medium text-stone-800">₹{Math.round(selectedService.cost / 8.5)}/day</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-stone-600">Cost per day (Urgent)</p>
+                          <p className="text-xl font-medium text-stone-800">₹{Math.round((selectedService.cost * 1.2) / 8.5)}/day</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-purple-700 mt-3 font-medium">
+                        💡 Same delivery time, but save ₹{Math.round(selectedService.cost * 0.2)} total by choosing Normal
+                      </p>
+                    </div>
+
+                    {/* Document Comparison */}
+                    <div>
+                      <h3 className="text-lg font-medium text-stone-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-purple-600" viewBox="0 0 20 20" fill="none">
+                          <path d="M5 2h8l4 4v10a2 2 0 01-2 2H7a2 2 0 01-2-2V4a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.5"/>
+                        </svg>
+                        Documents Required
+                      </h3>
+                      <p className="text-sm text-stone-600 mb-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        Same documents needed for both Normal and Urgent processing
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {selectedService.documents.map((doc, idx) => (
+                          <div key={idx} className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg border border-stone-100">
+                            <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                              <span className="text-emerald-600 text-xs font-bold">{idx + 1}</span>
+                            </div>
+                            <span className="text-sm text-stone-700">{doc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Similar Services */}
+                    <div>
+                      <h3 className="text-lg font-medium text-stone-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600" viewBox="0 0 20 20" fill="none">
+                          <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/>
+                          <path d="M6 10h8M10 6v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        Related Services
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {Object.entries(SERVICES_DATA)
+                          .filter(([k, v]) => v !== selectedService && v.difficulty === selectedService.difficulty)
+                          .slice(0, 4)
+                          .map(([name, service]) => (
+                            <div key={name} className="p-4 border border-stone-100 rounded-lg hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer">
+                              <p className="font-medium text-stone-800">{name}</p>
+                              <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-stone-600">
+                                <div>Cost: ₹{service.cost}</div>
+                                <div>Time: {service.time}</div>
+                              </div>
+                              <span className="text-xs font-medium text-stone-500 mt-2 inline-block px-2 py-1 bg-stone-100 rounded">
+                                {service.difficulty} difficulty
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Modal Actions */}
+                    <div className="flex gap-3 pt-6 border-t border-stone-100">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="flex-1 bg-emerald-700 text-white text-sm font-medium rounded-xl px-6 py-3 cursor-pointer border-none hover:bg-emerald-800 transition-colors"
+                      >
+                        Apply Now
+                      </motion.button>
+                      <button
+                        onClick={() => setShowCompare(false)}
+                        className="flex-1 border border-stone-200 text-stone-600 text-sm rounded-xl px-6 py-3 cursor-pointer hover:border-stone-300 transition-colors bg-white font-medium"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
