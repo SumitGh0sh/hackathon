@@ -20,7 +20,7 @@ function useTyping(words, speed = 70, pause = 1800) {
       }
     }, del ? speed / 2 : speed);
     return () => clearTimeout(id);
-  }, [ci, del, wi]);
+  }, [ci, del, wi, words, pause, speed]);
   return text;
 }
 
@@ -48,6 +48,96 @@ const CATEGORIES = [
   { label: "Legal & Courts",      sub: "FIR, notices, hearings",         icon: "◆" },
   { label: "Jobs & Business",     sub: "Licences, MSME, labour",         icon: "◉" },
   { label: "Certificates",        sub: "Birth, death, marriage docs",    icon: "◐" },
+];
+
+const SERVICES_DATA = {
+  "PAN Card": {
+    cost: 110,
+    time: "7 days",
+    documents: ["Aadhaar Card", "Photo"],
+    difficulty: "Easy",
+    fees: { government: 93, service: 17 },
+    tips: ["Apply online to avoid queues", "Keep Aadhaar updated"],
+    successRate: "98%"
+  },
+  "Passport": {
+    cost: 1500,
+    time: "15-30 days",
+    documents: ["Aadhaar", "Birth Certificate", "Photo", "Address Proof"],
+    difficulty: "Medium",
+    fees: { government: 1500, service: 0 },
+    tips: ["Book appointment in advance", "Get police verification done early"],
+    successRate: "95%"
+  },
+  "Driving License": {
+    cost: 200,
+    time: "7-14 days",
+    documents: ["Aadhaar", "Medical Certificate", "Address Proof"],
+    difficulty: "Easy",
+    fees: { government: 200, service: 0 },
+    tips: ["Complete driving test beforehand", "Choose RTO with less crowd"],
+    successRate: "92%"
+  },
+  "Birth Certificate": {
+    cost: 50,
+    time: "3-7 days",
+    documents: ["Hospital Certificate", "Parent ID", "Address Proof"],
+    difficulty: "Easy",
+    fees: { government: 50, service: 0 },
+    tips: ["Apply at local municipal office", "Keep all medical records ready"],
+    successRate: "99%"
+  }
+};
+
+const CENTERS_DATA = [
+  {
+    name: "CSC Center - Village Hub",
+    distance: "1.2 km",
+    address: "Near Post Office, Village Main Road, Maharashtra",
+    status: "Open",
+    services: ["PAN", "Aadhaar", "Ration"],
+    rating: 4.5,
+    waitingTime: "15 mins",
+    verified: true,
+    type: "CSC",
+    phone: "+91 98765 43210"
+  },
+  {
+    name: "Government Office - Tehsil",
+    distance: "2.8 km",
+    address: "Tehsil Building, District Road, Maharashtra",
+    status: "Open",
+    services: ["Passport", "Driving License", "Certificates"],
+    rating: 4.2,
+    waitingTime: "30 mins",
+    verified: true,
+    type: "Government",
+    phone: "+91 98765 43211"
+  },
+  {
+    name: "Authorized Agent - Sharma Services",
+    distance: "3.5 km",
+    address: "Shop No. 12, Market Complex, Maharashtra",
+    status: "Closed",
+    services: ["PAN", "Aadhaar"],
+    rating: 3.8,
+    waitingTime: "N/A",
+    verified: false,
+    type: "Agent",
+    phone: "+91 98765 43212"
+  },
+  {
+    name: "CSC Center - Digital Seva",
+    distance: "4.1 km",
+    address: "Opposite Bank, Main Street, Maharashtra",
+    status: "Open",
+    services: ["PAN", "Passport", "Driving License"],
+    rating: 4.7,
+    waitingTime: "10 mins",
+    verified: true,
+    type: "CSC",
+    phone: "+91 98765 43213"
+  }
 ];
 
 const STEPS = [
@@ -168,6 +258,22 @@ export default function LandingPage() {
   const [mode,      setMode]      = useState("Login");
   const [mobileNav, setMobileNav] = useState(false);
   const typed = useTyping(PLACEHOLDERS);
+
+  // Estimator state
+  const [estimatorQuery, setEstimatorQuery] = useState("");
+  const [selectedState, setSelectedState] = useState("Maharashtra");
+  const [isUrgent, setIsUrgent] = useState(false);
+  const [selectedService, setSelectedService] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Apply Near You state
+  const [locationQuery, setLocationQuery] = useState("");
+  const [nearbyCenters, setNearbyCenters] = useState([]);
+  const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
+  const [selectedDistance, setSelectedDistance] = useState("5km");
+  const [selectedRating, setSelectedRating] = useState("All");
+  const [selectedServiceFilter, setSelectedServiceFilter] = useState("All");
+  const [isLocationLoading, setIsLocationLoading] = useState(false);
 
   const { scrollY } = useScroll();
   const navShadow = useTransform(scrollY, [0, 60],
@@ -511,6 +617,531 @@ export default function LandingPage() {
                 </div>
               </Reveal>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══ COST & TIME ESTIMATOR ═══════════════════════════════════ */}
+      <section className="py-20 sm:py-28 bg-gradient-to-br from-emerald-50/50 to-white">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8">
+          <Reveal className="text-center mb-12 sm:mb-16">
+            <p className="text-xs text-emerald-700 uppercase tracking-widest font-medium mb-3">Cost & Time Estimator</p>
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal tracking-tight leading-snug mb-4">
+              Know your cost & time instantly
+            </h2>
+            <p className="text-base sm:text-lg text-stone-500 leading-relaxed max-w-2xl mx-auto font-light">
+              Get transparent estimates for fees and processing time before you apply
+            </p>
+          </Reveal>
+
+          {/* Input Section */}
+          <Reveal delay={0.1} className="mb-12">
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-3xl p-8 border border-stone-100 shadow-lg">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                  {/* Search Bar */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">Service</label>
+                    <div className="relative">
+                      <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" viewBox="0 0 18 18" fill="none">
+                        <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.5"/>
+                        <path d="M12.5 12.5L16 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      <input
+                        type="text"
+                        value={estimatorQuery}
+                        onChange={(e) => setEstimatorQuery(e.target.value)}
+                        placeholder="Search service (e.g. PAN Card, Passport, Driving License)"
+                        className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* State Dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">State</label>
+                    <select
+                      value={selectedState}
+                      onChange={(e) => setSelectedState(e.target.value)}
+                      className="w-full px-4 py-3 border border-stone-200 rounded-xl text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
+                    >
+                      <option>Maharashtra</option>
+                      <option>Delhi</option>
+                      <option>Karnataka</option>
+                      <option>Tamil Nadu</option>
+                      <option>Uttar Pradesh</option>
+                      <option>Gujarat</option>
+                      <option>Rajasthan</option>
+                      <option>West Bengal</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Urgent Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-stone-700">Processing Type:</label>
+                    <div className="flex bg-stone-100 rounded-lg p-1">
+                      <button
+                        onClick={() => setIsUrgent(false)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                          !isUrgent ? "bg-white text-stone-800 shadow-sm" : "text-stone-500"
+                        }`}
+                      >
+                        Normal
+                      </button>
+                      <button
+                        onClick={() => setIsUrgent(true)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                          isUrgent ? "bg-white text-stone-800 shadow-sm" : "text-stone-500"
+                        }`}
+                      >
+                        Urgent
+                      </button>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setIsLoading(true);
+                      setTimeout(() => {
+                        const service = Object.keys(SERVICES_DATA).find(s =>
+                          s.toLowerCase().includes(estimatorQuery.toLowerCase())
+                        );
+                        setSelectedService(service ? SERVICES_DATA[service] : null);
+                        setIsLoading(false);
+                      }, 1000);
+                    }}
+                    className="bg-emerald-700 text-white text-sm font-medium rounded-xl px-6 py-3 cursor-pointer border-none hover:bg-emerald-800 transition-colors shadow-md"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Estimating...
+                      </div>
+                    ) : (
+                      "Get Estimate"
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Results Section */}
+          <AnimatePresence>
+            {selectedService && (
+              <Reveal delay={0.2}>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="max-w-4xl mx-auto"
+                >
+                  <div className="bg-white rounded-3xl p-8 border border-stone-100 shadow-lg">
+                    {/* Service Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h3 className="text-2xl font-serif font-normal text-stone-900 mb-1">
+                          {Object.keys(SERVICES_DATA).find(key => SERVICES_DATA[key] === selectedService)}
+                        </h3>
+                        <p className="text-sm text-stone-500">Estimate for {selectedState}</p>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        selectedService.difficulty === 'Easy' ? 'bg-green-100 text-green-700' :
+                        selectedService.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {selectedService.difficulty}
+                      </div>
+                    </div>
+
+                    {/* Cost Breakdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                      <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-emerald-700" viewBox="0 0 20 20" fill="none">
+                              <path d="M10 1v3m0 0l-3-3m3 3l3-3m-6 6h6m-6 4h6m-6 4h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">Total Cost</p>
+                            <p className="text-2xl font-serif font-normal text-emerald-800">₹{selectedService.cost}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-stone-600">Government Fees</span>
+                            <span className="font-medium">₹{selectedService.fees.government}</span>
+                          </div>
+                          {selectedService.fees.service > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-stone-600">Service Charges</span>
+                              <span className="font-medium">₹{selectedService.fees.service}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-blue-700" viewBox="0 0 20 20" fill="none">
+                              <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                              <path d="M10 6v4l2 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-xs text-blue-700 font-medium uppercase tracking-wide">Processing Time</p>
+                            <p className="text-2xl font-serif font-normal text-blue-800">{selectedService.time}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-stone-600">
+                          {isUrgent ? "Expedited processing applied" : "Standard processing time"}
+                        </p>
+                      </div>
+
+                      <div className="bg-purple-50 rounded-2xl p-6 border border-purple-100">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-purple-700" viewBox="0 0 20 20" fill="none">
+                              <path d="M7 3h6l2 4v10H5V7l2-4z" stroke="currentColor" strokeWidth="1.5"/>
+                              <path d="M9 9h2m-2 3h2m-2 3h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-xs text-purple-700 font-medium uppercase tracking-wide">Documents Needed</p>
+                            <p className="text-lg font-medium text-purple-800">{selectedService.documents.length} required</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {selectedService.documents.map((doc, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
+                              <span className="text-sm text-stone-600">{doc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tips and Actions */}
+                    <div className="border-t border-stone-100 pt-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                          <h4 className="text-sm font-medium text-stone-800 mb-3 flex items-center gap-2">
+                            <svg className="w-4 h-4 text-amber-600" viewBox="0 0 20 20" fill="none">
+                              <path d="M10 2L13 6.5L18 7L14 11L15 16L10 13.5L5 16L6 11L2 7L7 6.5L10 2Z" stroke="currentColor" strokeWidth="1.5"/>
+                            </svg>
+                            Tips to avoid delay
+                          </h4>
+                          <ul className="space-y-2">
+                            {selectedService.tips.map((tip, index) => (
+                              <li key={index} className="text-sm text-stone-600 flex items-start gap-2">
+                                <span className="text-emerald-600 mt-1">•</span>
+                                {tip}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm font-medium text-stone-800 mb-3 flex items-center gap-2">
+                            <svg className="w-4 h-4 text-green-600" viewBox="0 0 20 20" fill="none">
+                              <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                            </svg>
+                            Success Rate: {selectedService.successRate}
+                          </h4>
+                          <p className="text-sm text-stone-600 mb-4">
+                            Based on 750+ successful applications this month
+                          </p>
+                          <div className="flex gap-3">
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className="bg-emerald-700 text-white text-sm font-medium rounded-xl px-6 py-2.5 cursor-pointer border-none hover:bg-emerald-800 transition-colors"
+                            >
+                              Apply Now
+                            </motion.button>
+                            <button className="border border-stone-200 text-stone-600 text-sm rounded-xl px-6 py-2.5 cursor-pointer hover:border-emerald-500 hover:text-emerald-700 transition-colors bg-white">
+                              Compare Services
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </Reveal>
+            )}
+          </AnimatePresence>
+        </div>
+      </section>
+
+      {/* ══ APPLY NEAR YOU ════════════════════════════════════════ */}
+      <section className="py-20 sm:py-28 bg-white">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8">
+          <Reveal className="text-center mb-12 sm:mb-16">
+            <p className="text-xs text-emerald-700 uppercase tracking-widest font-medium mb-3">Apply Near You</p>
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal tracking-tight leading-snug mb-4">
+              Apply near you
+            </h2>
+            <p className="text-base sm:text-lg text-stone-500 leading-relaxed max-w-2xl mx-auto font-light">
+              Find nearby centers where you can apply offline with assistance
+            </p>
+          </Reveal>
+
+          {/* Location Input */}
+          <Reveal delay={0.1} className="mb-12">
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-stone-50 rounded-3xl p-8 border border-stone-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  {/* Use My Location Button */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">Location Access</label>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setIsLocationLoading(true);
+                        setTimeout(() => {
+                          setNearbyCenters(CENTERS_DATA);
+                          setIsLocationLoading(false);
+                        }, 1500);
+                      }}
+                      className="w-full bg-emerald-700 text-white text-sm font-medium rounded-xl px-6 py-3 cursor-pointer border-none hover:bg-emerald-800 transition-colors flex items-center justify-center gap-2"
+                    >
+                      {isLocationLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Getting location...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
+                            <path d="M10 2.5C6.5 2.5 3.5 5.5 3.5 9C3.5 12.5 6.5 15.5 10 15.5C13.5 15.5 16.5 12.5 16.5 9C16.5 5.5 13.5 2.5 10 2.5Z" stroke="currentColor" strokeWidth="1.5"/>
+                            <circle cx="10" cy="9" r="2" fill="currentColor"/>
+                          </svg>
+                          Use my location
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
+
+                  {/* Manual Search */}
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">Or enter city / PIN code</label>
+                    <div className="relative">
+                      <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" viewBox="0 0 18 18" fill="none">
+                        <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.5"/>
+                        <path d="M12.5 12.5L16 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      <input
+                        type="text"
+                        value={locationQuery}
+                        onChange={(e) => setLocationQuery(e.target.value)}
+                        placeholder="Enter city or PIN code"
+                        className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-stone-700">Distance:</label>
+                      <select
+                        value={selectedDistance}
+                        onChange={(e) => setSelectedDistance(e.target.value)}
+                        className="px-3 py-1 border border-stone-200 rounded-lg text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
+                      >
+                        <option>1km</option>
+                        <option>5km</option>
+                        <option>10km</option>
+                        <option>25km</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-stone-700">Rating:</label>
+                      <select
+                        value={selectedRating}
+                        onChange={(e) => setSelectedRating(e.target.value)}
+                        className="px-3 py-1 border border-stone-200 rounded-lg text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
+                      >
+                        <option>All</option>
+                        <option>4+ stars</option>
+                        <option>3+ stars</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-stone-700">Service:</label>
+                      <select
+                        value={selectedServiceFilter}
+                        onChange={(e) => setSelectedServiceFilter(e.target.value)}
+                        className="px-3 py-1 border border-stone-200 rounded-lg text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
+                      >
+                        <option>All</option>
+                        <option>PAN</option>
+                        <option>Passport</option>
+                        <option>Driving License</option>
+                        <option>Aadhaar</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="verified"
+                      checked={showVerifiedOnly}
+                      onChange={(e) => setShowVerifiedOnly(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 bg-white border-stone-300 rounded focus:ring-emerald-500"
+                    />
+                    <label htmlFor="verified" className="text-sm text-stone-700 cursor-pointer">
+                      Show only verified centers
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Map and Centers */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Map Placeholder */}
+            <Reveal delay={0.2}>
+              <div className="bg-stone-100 rounded-3xl p-6 border border-stone-200 h-96 lg:h-[500px] relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-stone-100 opacity-50"></div>
+                <div className="relative h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <svg className="w-16 h-16 text-emerald-600 mx-auto mb-4" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" stroke="currentColor" strokeWidth="1.5"/>
+                    </svg>
+                    <p className="text-stone-600 font-medium mb-2">Interactive Map</p>
+                    <p className="text-sm text-stone-500">Nearby centers will appear here</p>
+                  </div>
+                </div>
+                {/* Mock pins */}
+                {nearbyCenters.slice(0, 4).map((center, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    className={`absolute w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer ${
+                      center.type === 'CSC' ? 'bg-blue-500' :
+                      center.type === 'Government' ? 'bg-green-500' : 'bg-orange-500'
+                    }`}
+                    style={{
+                      left: `${20 + index * 15}%`,
+                      top: `${30 + index * 10}%`
+                    }}
+                  >
+                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-stone-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                      {center.name.split(' - ')[0]}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </Reveal>
+
+            {/* Centers List */}
+            <Reveal delay={0.3}>
+              <div className="space-y-4 max-h-96 lg:max-h-[500px] overflow-y-auto">
+                {nearbyCenters.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="w-12 h-12 text-stone-400 mx-auto mb-4" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" stroke="currentColor" strokeWidth="1.5"/>
+                    </svg>
+                    <p className="text-stone-500">Click "Use my location" to find nearby centers</p>
+                  </div>
+                ) : (
+                  nearbyCenters
+                    .filter(center => !showVerifiedOnly || center.verified)
+                    .filter(center => selectedServiceFilter === 'All' || center.services.includes(selectedServiceFilter))
+                    .map((center, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-lg font-medium text-stone-900">{center.name}</h3>
+                              {center.verified && (
+                                <div className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full font-medium">
+                                  ✓ Verified
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-sm text-stone-500 mb-2">{center.distance} away</p>
+                            <p className="text-sm text-stone-600">{center.address}</p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            center.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {center.status}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <p className="text-xs text-stone-500 uppercase tracking-wide mb-1">Services</p>
+                            <div className="flex flex-wrap gap-1">
+                              {center.services.slice(0, 3).map(service => (
+                                <span key={service} className="text-xs bg-stone-100 text-stone-700 px-2 py-1 rounded">
+                                  {service}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs text-stone-500 uppercase tracking-wide mb-1">Rating</p>
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-medium text-stone-900">{center.rating}</span>
+                              <svg className="w-4 h-4 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-stone-500 uppercase tracking-wide mb-1">Waiting Time</p>
+                            <p className="text-sm font-medium text-stone-900">{center.waitingTime}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              className="bg-stone-100 text-stone-700 text-sm rounded-lg px-4 py-2 cursor-pointer border-none hover:bg-stone-200 transition-colors"
+                            >
+                              Call Now
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              className="bg-emerald-700 text-white text-sm rounded-lg px-4 py-2 cursor-pointer border-none hover:bg-emerald-800 transition-colors"
+                            >
+                              Get Directions
+                            </motion.button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))
+                )}
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
