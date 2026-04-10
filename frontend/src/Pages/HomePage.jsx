@@ -86,6 +86,105 @@ const SERVICES_DATA = {
     fees: { government: 50, service: 0 },
     tips: ["Apply at local municipal office", "Keep all medical records ready"],
     successRate: "99%"
+  },
+  "Aadhaar Card": {
+    cost: 0,
+    time: "1-3 days",
+    documents: ["Birth Certificate", "Address Proof", "Photo"],
+    difficulty: "Easy",
+    fees: { government: 0, service: 0 },
+    tips: ["Visit nearest enrollment center", "Bring original documents"],
+    successRate: "99%"
+  },
+  "Voter ID": {
+    cost: 0,
+    time: "15-30 days",
+    documents: ["Aadhaar", "Address Proof", "Photo"],
+    difficulty: "Easy",
+    fees: { government: 0, service: 0 },
+    tips: ["Apply online for faster processing", "Check eligibility first"],
+    successRate: "97%"
+  },
+  "Ration Card": {
+    cost: 0,
+    time: "7-15 days",
+    documents: ["Aadhaar", "Address Proof", "Income Certificate"],
+    difficulty: "Medium",
+    fees: { government: 0, service: 0 },
+    tips: ["Apply through CSC centers", "Required for subsidized food"],
+    successRate: "95%"
+  },
+  "Marriage Certificate": {
+    cost: 100,
+    time: "7-14 days",
+    documents: ["ID Proof", "Address Proof", "Witness Documents"],
+    difficulty: "Easy",
+    fees: { government: 100, service: 0 },
+    tips: ["Apply at local registrar office", "Both parties must be present"],
+    successRate: "98%"
+  },
+  "Death Certificate": {
+    cost: 0,
+    time: "1-3 days",
+    documents: ["Hospital Certificate", "ID Proof"],
+    difficulty: "Easy",
+    fees: { government: 0, service: 0 },
+    tips: ["Apply within 21 days", "Required for various procedures"],
+    successRate: "99%"
+  },
+  "Property Registration": {
+    cost: 5000,
+    time: "30-60 days",
+    documents: ["Property Documents", "ID Proof", "Address Proof"],
+    difficulty: "Hard",
+    fees: { government: 5000, service: 0 },
+    tips: ["Consult lawyer first", "Stamp duty varies by state"],
+    successRate: "90%"
+  },
+  "GST Registration": {
+    cost: 0,
+    time: "7-15 days",
+    documents: ["PAN Card", "Address Proof", "Bank Details"],
+    difficulty: "Medium",
+    fees: { government: 0, service: 0 },
+    tips: ["Required for business", "Apply online through GST portal"],
+    successRate: "94%"
+  },
+  "MSME Registration": {
+    cost: 0,
+    time: "1-7 days",
+    documents: ["PAN Card", "Aadhaar", "Address Proof"],
+    difficulty: "Easy",
+    fees: { government: 0, service: 0 },
+    tips: ["Free registration", "Required for government schemes"],
+    successRate: "98%"
+  },
+  "PM Kisan Registration": {
+    cost: 0,
+    time: "15-30 days",
+    documents: ["Aadhaar", "Bank Details", "Land Documents"],
+    difficulty: "Easy",
+    fees: { government: 0, service: 0 },
+    tips: ["For farmers", "Income support scheme"],
+    successRate: "96%"
+  },
+  "Ayushman Bharat Card": {
+    cost: 0,
+    time: "7-15 days",
+    documents: ["Aadhaar", "Income Certificate", "Family Details"],
+    difficulty: "Easy",
+    fees: { government: 0, service: 0 },
+    tips: ["Free health insurance", "For eligible families"],
+    successRate: "97%"
+  },
+  "Scholarship Application": {
+    cost: 0,
+    time: "30-60 days",
+    documents: ["Mark Sheets", "Income Certificate", "Bank Details"],
+    difficulty: "Medium",
+    fees: { government: 0, service: 0 },
+    tips: ["Apply through NSP portal", "Check eligibility criteria"],
+    successRate: "92%"
   }
 };
 
@@ -95,7 +194,7 @@ const CENTERS_DATA = [
     distance: "1.2 km",
     address: "Near Post Office, Village Main Road, Maharashtra",
     status: "Open",
-    services: ["PAN", "Aadhaar", "Ration"],
+    services: ["PAN", "Aadhaar", "Ration", "Voter ID", "PM Kisan", "Ayushman Bharat"],
     rating: 4.5,
     waitingTime: "15 mins",
     verified: true,
@@ -107,7 +206,7 @@ const CENTERS_DATA = [
     distance: "2.8 km",
     address: "Tehsil Building, District Road, Maharashtra",
     status: "Open",
-    services: ["Passport", "Driving License", "Certificates"],
+    services: ["Passport", "Driving License", "Birth Certificate", "Death Certificate", "Marriage Certificate", "Property Registration"],
     rating: 4.2,
     waitingTime: "30 mins",
     verified: true,
@@ -119,7 +218,7 @@ const CENTERS_DATA = [
     distance: "3.5 km",
     address: "Shop No. 12, Market Complex, Maharashtra",
     status: "Closed",
-    services: ["PAN", "Aadhaar"],
+    services: ["PAN", "Aadhaar", "GST Registration", "MSME Registration"],
     rating: 3.8,
     waitingTime: "N/A",
     verified: false,
@@ -131,12 +230,60 @@ const CENTERS_DATA = [
     distance: "4.1 km",
     address: "Opposite Bank, Main Street, Maharashtra",
     status: "Open",
-    services: ["PAN", "Passport", "Driving License"],
+    services: ["PAN", "Passport", "Driving License", "Aadhaar", "Voter ID", "Ration Card", "Scholarship Application"],
     rating: 4.7,
     waitingTime: "10 mins",
     verified: true,
     type: "CSC",
     phone: "+91 98765 43213"
+  },
+  {
+    name: "Municipal Office - Nagar Palika",
+    distance: "5.2 km",
+    address: "Municipal Building, City Center, Maharashtra",
+    status: "Open",
+    services: ["Birth Certificate", "Death Certificate", "Marriage Certificate", "Property Registration"],
+    rating: 4.0,
+    waitingTime: "45 mins",
+    verified: true,
+    type: "Government",
+    phone: "+91 98765 43214"
+  },
+  {
+    name: "RTO Office - Regional Transport",
+    distance: "6.8 km",
+    address: "RTO Complex, Highway Road, Maharashtra",
+    status: "Open",
+    services: ["Driving License", "Vehicle Registration", "Permit Renewal"],
+    rating: 3.9,
+    waitingTime: "60 mins",
+    verified: true,
+    type: "Government",
+    phone: "+91 98765 43215"
+  },
+  {
+    name: "Bank CSC - HDFC Services",
+    distance: "7.1 km",
+    address: "HDFC Bank Branch, Mall Road, Maharashtra",
+    status: "Open",
+    services: ["PAN", "Aadhaar", "GST Registration", "MSME Registration", "PM Kisan"],
+    rating: 4.3,
+    waitingTime: "20 mins",
+    verified: true,
+    type: "CSC",
+    phone: "+91 98765 43216"
+  },
+  {
+    name: "Post Office Agent",
+    distance: "8.5 km",
+    address: "Main Post Office, Station Road, Maharashtra",
+    status: "Open",
+    services: ["PAN", "Aadhaar", "Passport", "Voter ID"],
+    rating: 4.1,
+    waitingTime: "25 mins",
+    verified: true,
+    type: "Government",
+    phone: "+91 98765 43217"
   }
 ];
 
@@ -665,14 +812,43 @@ export default function LandingPage() {
                       onChange={(e) => setSelectedState(e.target.value)}
                       className="w-full px-4 py-3 border border-stone-200 rounded-xl text-sm text-stone-800 outline-none focus:border-emerald-500 transition-colors bg-white"
                     >
-                      <option>Maharashtra</option>
-                      <option>Delhi</option>
-                      <option>Karnataka</option>
-                      <option>Tamil Nadu</option>
-                      <option>Uttar Pradesh</option>
+                      <option>Andhra Pradesh</option>
+                      <option>Arunachal Pradesh</option>
+                      <option>Assam</option>
+                      <option>Bihar</option>
+                      <option>Chhattisgarh</option>
+                      <option>Goa</option>
                       <option>Gujarat</option>
+                      <option>Haryana</option>
+                      <option>Himachal Pradesh</option>
+                      <option>Jharkhand</option>
+                      <option>Karnataka</option>
+                      <option>Kerala</option>
+                      <option>Madhya Pradesh</option>
+                      <option>Maharashtra</option>
+                      <option>Manipur</option>
+                      <option>Meghalaya</option>
+                      <option>Mizoram</option>
+                      <option>Nagaland</option>
+                      <option>Odisha</option>
+                      <option>Punjab</option>
                       <option>Rajasthan</option>
+                      <option>Sikkim</option>
+                      <option>Tamil Nadu</option>
+                      <option>Telangana</option>
+                      <option>Tripura</option>
+                      <option>Uttar Pradesh</option>
+                      <option>Uttarakhand</option>
                       <option>West Bengal</option>
+                      <option>Delhi</option>
+                      <option>Jammu and Kashmir</option>
+                      <option>Ladakh</option>
+                      <option>Puducherry</option>
+                      <option>Chandigarh</option>
+                      <option>Andaman and Nicobar Islands</option>
+                      <option>Daman and Diu</option>
+                      <option>Dadra and Nagar Haveli</option>
+                      <option>Lakshadweep</option>
                     </select>
                   </div>
                 </div>
@@ -991,6 +1167,17 @@ export default function LandingPage() {
                         <option>Passport</option>
                         <option>Driving License</option>
                         <option>Aadhaar</option>
+                        <option>Voter ID</option>
+                        <option>Ration Card</option>
+                        <option>Marriage Certificate</option>
+                        <option>Death Certificate</option>
+                        <option>Property Registration</option>
+                        <option>GST Registration</option>
+                        <option>MSME Registration</option>
+                        <option>PM Kisan</option>
+                        <option>Ayushman Bharat</option>
+                        <option>Scholarship Application</option>
+                        <option>Birth Certificate</option>
                       </select>
                     </div>
                   </div>
