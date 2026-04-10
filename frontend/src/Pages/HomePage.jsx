@@ -1255,6 +1255,7 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                       <div>
                         <h3 className="text-2xl font-serif font-normal text-stone-900 mb-1">
                           {Object.keys(SERVICES_DATA).find(key => SERVICES_DATA[key] === selectedService)}
+                          {isUrgent && <span className="text-sm text-amber-600 ml-2">⚡ Urgent</span>}
                         </h3>
                         <p className="text-sm text-stone-500">Estimate for {selectedState}</p>
                       </div>
@@ -1278,7 +1279,10 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                           </div>
                           <div>
                             <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">Total Cost</p>
-                            <p className="text-2xl font-serif font-normal text-emerald-800">₹{selectedService.cost}</p>
+                            <p className="text-2xl font-serif font-normal text-emerald-800">
+                              ₹{isUrgent ? Math.round(selectedService.cost * 1.3) : selectedService.cost}
+                              {isUrgent && <span className="text-sm text-amber-600 ml-2">⚡</span>}
+                            </p>
                           </div>
                         </div>
                         <div className="space-y-2 text-sm">
@@ -1290,6 +1294,12 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                             <div className="flex justify-between">
                               <span className="text-stone-600">Service Charges</span>
                               <span className="font-medium">₹{selectedService.fees.service}</span>
+                            </div>
+                          )}
+                          {isUrgent && (
+                            <div className="flex justify-between">
+                              <span className="text-stone-600">Urgent Processing Fee</span>
+                              <span className="font-medium text-amber-600">₹{Math.round(selectedService.cost * 0.3)}</span>
                             </div>
                           )}
                         </div>
@@ -1305,11 +1315,14 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                           </div>
                           <div>
                             <p className="text-xs text-blue-700 font-medium uppercase tracking-wide">Processing Time</p>
-                            <p className="text-2xl font-serif font-normal text-blue-800">{selectedService.time}</p>
+                            <p className="text-2xl font-serif font-normal text-blue-800">
+                              {isUrgent ? "1–3 days" : selectedService.time}
+                              {isUrgent && <span className="text-sm text-amber-600 ml-2">⚡</span>}
+                            </p>
                           </div>
                         </div>
                         <p className="text-sm text-stone-600">
-                          {isUrgent ? "Expedited processing applied" : "Standard processing time"}
+                          {isUrgent ? "Fast Processing ⚡" : "Standard processing time"}
                         </p>
                       </div>
 
