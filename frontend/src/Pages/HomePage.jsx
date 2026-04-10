@@ -7,6 +7,7 @@ function useTyping(words, speed = 70, pause = 1800) {
   const [wi, setWi]     = useState(0);
   const [ci, setCi]     = useState(0);
   const [del, setDel]   = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   useEffect(() => {
     const w = words[wi];
     const id = setTimeout(() => {
@@ -87,6 +88,7 @@ function AuthModal({ open, onClose, mode, setMode }) {
               className="absolute top-4 right-4 w-8 h-8 rounded-full border border-stone-200 text-stone-400 hover:text-stone-700 flex items-center justify-center text-lg transition-colors bg-transparent cursor-pointer">
               ×
             </button>
+
 
             {/* tab */}
             <div className="flex bg-stone-100 rounded-xl p-1 mb-7">
