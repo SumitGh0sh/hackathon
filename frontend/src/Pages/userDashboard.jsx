@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getApplications } from "../utils/applications";
+import { Link } from "react-router-dom";
+import { getApplications, createApplication } from "../utils/applications";
 
 /* ── fonts ── */
 const FontLink = () => (
@@ -40,6 +41,183 @@ const COLOR_MAP = {
   orange:  { bg: "bg-orange-50",  border: "border-orange-100",  text: "text-orange-700",  dot: "bg-orange-500"  },
   teal:    { bg: "bg-teal-50",    border: "border-teal-100",    text: "text-teal-700",    dot: "bg-teal-500"    },
   indigo:  { bg: "bg-indigo-50",  border: "border-indigo-100",  text: "text-indigo-700",  dot: "bg-indigo-500"  },
+};
+
+function colorStyles(colorKey) {
+  return COLOR_MAP[colorKey] || COLOR_MAP.emerald;
+}
+
+/** Step-by-step processes per category (shown under Explore more). */
+const PROCEDURE_PROCESSES = {
+  "Identity & Aadhaar": [
+    {
+      title: "Aadhaar update / correction",
+      steps: [
+        "Book an appointment at uidai.gov.in or visit an Aadhaar centre.",
+        "Carry original proof of identity and address (as per UIDAI list).",
+        "Fill the correction form; biometric verification if required.",
+        "Collect acknowledgement slip and note the URN for tracking.",
+        "Updated Aadhaar is usually ready within 90 days; download e-Aadhaar when ready.",
+      ],
+    },
+    {
+      title: "PAN card — new or reprint",
+      steps: [
+        "Apply on the NSDL or Protean eGov portal with Aadhaar e-KYC where allowed.",
+        "Upload photograph, signature, and supporting documents if applicable.",
+        "Pay the prescribed fee online and save the acknowledgement number.",
+        "Track status on the same portal; e-PAN is often issued within days.",
+        "Physical card, if opted, is dispatched by post to your address.",
+      ],
+    },
+    {
+      title: "Voter ID (EPIC) — new enrolment",
+      steps: [
+        "Use voterportal.eci.gov.in or submit Form 6 at the Electoral Registration Office.",
+        "Attach age proof, address proof, and photograph as per guidelines.",
+        "BLO may visit for verification; respond to any SMS or portal queries.",
+        "After approval, EPIC number appears on the portal; collect card when notified.",
+      ],
+    },
+  ],
+  "Land & Property": [
+    {
+      title: "Property registration (sale deed)",
+      steps: [
+        "Verify title, encumbrance certificate, and approved layout / khata.",
+        "Pay stamp duty and registration fee as per state calculator.",
+        "Book slot on the state IGR portal; both parties carry ID and originals.",
+        "Execute deed before the Sub-Registrar; biometrics may be captured.",
+        "Collect registered deed; update records for mutation if needed.",
+      ],
+    },
+    {
+      title: "Land mutation (name change in revenue records)",
+      steps: [
+        "File mutation application with registered deed, tax receipts, and ID proof.",
+        "Pay applicable fees at the tehsil / online portal.",
+        "Revenue inspector may conduct field verification.",
+        "After officer order, updated RoR / record of rights is issued.",
+      ],
+    },
+  ],
+  "Benefits & Welfare": [
+    {
+      title: "Ration card — new / duplicate",
+      steps: [
+        "Check state PDS portal (e.g. EPDS) for online or CSC application.",
+        "Submit family details, Aadhaar of all members, address, and income proof if asked.",
+        "Field inquiry may be scheduled; keep mobile reachable.",
+        "Track application ID; collect ration card or e-card download when approved.",
+      ],
+    },
+    {
+      title: "Social pension (old age / widow / disability)",
+      steps: [
+        "Confirm eligibility (age, income, residence) on the state social welfare portal.",
+        "Apply with bank passbook, Aadhaar, income certificate, and category proof.",
+        "Verification by local authority; grievance redressal if delayed.",
+        "Pension is credited to the seeded bank account after approval.",
+      ],
+    },
+  ],
+  "Health & Insurance": [
+    {
+      title: "Ayushman Bharat (PM-JAY) registration",
+      steps: [
+        "Check eligibility via pmjay.gov.in or hospital / CSC help desk.",
+        "Provide Aadhaar and family details for SECC / database verification.",
+        "Complete e-KYC; download or collect Ayushman card when generated.",
+        "Use card at empanelled hospitals for cashless treatment as per package rates.",
+      ],
+    },
+    {
+      title: "State health scheme / insurance card",
+      steps: [
+        "Visit the state health authority portal or nearest kiosk.",
+        "Submit ID, residence proof, and income / category documents.",
+        "Pay fee only if the scheme requires it (many are free).",
+        "Collect card and list of covered hospitals from the portal.",
+      ],
+    },
+  ],
+  "Education": [
+    {
+      title: "National Scholarship Portal (NSP) application",
+      steps: [
+        "Register on scholarships.gov.in and choose the relevant scheme.",
+        "Fill academic, bank, and caste / income details accurately.",
+        "Upload institute verification and mandatory certificates.",
+        "Track status; institute and district verification must complete on time.",
+        "Scholarship is disbursed to the Aadhaar-seeded bank account after sanction.",
+      ],
+    },
+    {
+      title: "School / college admission (government quota)",
+      steps: [
+        "Watch official counselling notifications and register within the window.",
+        "Upload marksheets, certificates, and reservation proofs.",
+        "Pay counselling fee; exercise option locking as per schedule.",
+        "Report to allotted institute with originals for document verification.",
+      ],
+    },
+  ],
+  "Legal & Courts": [
+    {
+      title: "FIR copy / status",
+      steps: [
+        "Visit the police station that registered the FIR with ID proof.",
+        "For certified copy, apply as per state rules (fee + application).",
+        "Use state citizen portals, if available, for online status tracking.",
+      ],
+    },
+    {
+      title: "Legal aid (District Legal Services Authority)",
+      steps: [
+        "Contact DLSA with income proof to show eligibility.",
+        "Submit brief facts and supporting documents for assessment.",
+        "If eligible, a panel lawyer may be assigned for court matters.",
+      ],
+    },
+  ],
+  "Jobs & Business": [
+    {
+      title: "MSME / Udyam registration",
+      steps: [
+        "Apply on udyamregistration.gov.in using Aadhaar (owner) and business details.",
+        "No government fee for Udyam registration.",
+        "Download Udyam certificate; use Udyam number for schemes and tenders.",
+      ],
+    },
+    {
+      title: "Shop & Establishment registration",
+      steps: [
+        "Use the state labour department portal or visit the inspectorate.",
+        "Submit premises details, employer ID, and employee count.",
+        "Pay prescribed fee; display registration certificate at the workplace.",
+      ],
+    },
+  ],
+  "Certificates": [
+    {
+      title: "Birth / death certificate",
+      steps: [
+        "Apply at the municipal body or through the state CRS portal.",
+        "Attach hospital intimation or supporting affidavits as required.",
+        "Pay nominal fee; choose digital copy or printed certificate.",
+        "Use certificate number for future ID / inheritance processes.",
+      ],
+    },
+    {
+      title: "Income / caste / domicile certificate",
+      steps: [
+        "Apply on the state e-District or revenue portal.",
+        "Upload proof of income, residence, or community as per checklist.",
+        "Tehsildar / competent authority verifies; status is updated online.",
+        "Download digitally signed certificate for scholarships and jobs.",
+      ],
+    },
+  ],
 };
 
 const ACTIVE_FORMS = [
@@ -101,15 +279,46 @@ const BOT_SUGGESTIONS = [
 ];
 
 const INITIAL_MESSAGES = [
-  { role: "bot", text: "Namaste Rahul! 🙏 I'm your SaathiSeva assistant. I can help you understand government procedures, track your applications, and guide you step by step. What would you like help with today?" },
+  {
+    id: "welcome",
+    role: "bot",
+    text: "Namaste Rahul! 🙏 I'm your SaathiSeva assistant. I can help you understand government procedures, track your applications, and guide you step by step. What would you like help with today?",
+  },
 ];
 
-const BOT_REPLIES = {
-  "How do I apply for a ration card?": "To apply for a Ration Card in Bihar:\n\n1. Visit your nearest Block Office or apply online at epds.bihar.gov.in\n2. Fill Form RC-1 with your family details\n3. Attach Aadhaar card (all members), income certificate, address proof\n4. Pay ₹0 — it's completely free\n5. Track your status using your acknowledgement number\n\nExpected time: 15–30 working days.",
-  "What documents are needed for Ayushman Bharat?": "For Ayushman Bharat (PMJAY) registration you need:\n\n• Aadhaar card\n• Ration card or SECC data match\n• Mobile number linked to Aadhaar\n• Income certificate (if self-enrolled)\n\nCheck eligibility first at pmjay.gov.in with your mobile number. The card is issued free of cost.",
-  "Check my land mutation status": "Based on your profile, I can see your Land Mutation application for Survey #441 was filed on 1 Apr 2025. Current status: Notice Publishing stage.\n\nNext step: A public notice will be published in ~10 days. Ensure no objections are filed during the 15-day objection period.",
-  "Old age pension eligibility": "For Bihar Old Age Pension (Mukhyamantri Vridhajan Pension Yojna):\n\n• Age: 60+ years\n• Must be a Bihar resident\n• Annual income < ₹1 lakh\n• Not receiving any other pension\n\nPension amount: ₹400/month (60-79 yrs), ₹500/month (80+ yrs). Apply at your nearest Block Development Office.",
+/** Exact chip text → procedure + optional SaathiSeva apply target (saved to My Forms). */
+const BOT_KNOWLEDGE = {
+  "How do I apply for a ration card?": {
+    text: "To apply for a Ration Card in Bihar:\n\n1. Visit your nearest Block Office or apply online at epds.bihar.gov.in\n2. Fill Form RC-1 with your family details\n3. Attach Aadhaar card (all members), income certificate, address proof\n4. Pay ₹0 — it's completely free\n5. Track your status using your acknowledgement number\n\nExpected time: 15–30 working days.",
+    apply: { schemeId: "CHAT-RATION", schemeName: "Ration Card Application", category: "Benefits & Welfare" },
+  },
+  "What documents are needed for Ayushman Bharat?": {
+    text: "For Ayushman Bharat (PMJAY) registration you need:\n\n• Aadhaar card\n• Ration card or SECC data match\n• Mobile number linked to Aadhaar\n• Income certificate (if self-enrolled)\n\nCheck eligibility first at pmjay.gov.in with your mobile number. The card is issued free of cost.",
+    apply: { schemeId: "CHAT-PMJAY", schemeName: "Ayushman Bharat (PM-JAY) registration", category: "Health & Insurance" },
+  },
+  "Check my land mutation status": {
+    text: "Based on your profile, I can see your Land Mutation application for Survey #441 was filed on 1 Apr 2025. Current status: Notice Publishing stage.\n\nNext step: A public notice will be published in ~10 days. Ensure no objections are filed during the 15-day objection period.",
+    apply: { schemeId: "CHAT-LAND-MUT", schemeName: "Land mutation — documents & follow-up", category: "Land & Property" },
+  },
+  "Old age pension eligibility": {
+    text: "For Bihar Old Age Pension (Mukhyamantri Vridhajan Pension Yojna):\n\n• Age: 60+ years\n• Must be a Bihar resident\n• Annual income < ₹1 lakh\n• Not receiving any other pension\n\nPension amount: ₹400/month (60-79 yrs), ₹500/month (80+ yrs). Apply at your nearest Block Development Office.",
+    apply: { schemeId: "CHAT-OAP", schemeName: "Old age pension — application support", category: "Benefits & Welfare" },
+  },
 };
+
+const GENERIC_BOT_REPLY =
+  "I'm looking into that for you. This procedure typically involves visiting your nearest government office with ID and address proof. Use a quick suggestion above for step-by-step help, or describe your service in one line.";
+
+function matchChatKnowledge(text) {
+  const t = text.trim();
+  if (BOT_KNOWLEDGE[t]) return BOT_KNOWLEDGE[t];
+  const lower = t.toLowerCase();
+  if (/\bration\b/.test(lower)) return BOT_KNOWLEDGE[BOT_SUGGESTIONS[0]];
+  if (/ayushman|pmjay|pm-jay|health card/.test(lower)) return BOT_KNOWLEDGE[BOT_SUGGESTIONS[1]];
+  if (/land mutation|mutation status|survey/.test(lower)) return BOT_KNOWLEDGE[BOT_SUGGESTIONS[2]];
+  if (/pension|old age|vridh/.test(lower)) return BOT_KNOWLEDGE[BOT_SUGGESTIONS[3]];
+  return null;
+}
 
 /* ── nav items ── */
 const NAV = [
@@ -194,7 +403,7 @@ function OverviewPanel({ setActiveTab, forms }) {
         </div>
         <div className="flex flex-col gap-2">
           {forms.map(f => {
-            const c = COLOR_MAP[f.color];
+            const c = colorStyles(f.color);
             return (
               <div key={f.id} className={`rounded-xl border p-4 ${c.bg} ${c.border}`}>
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -243,6 +452,16 @@ function OverviewPanel({ setActiveTab, forms }) {
 /* ─────────── PROCEDURES PANEL ─────────── */
 function ProceduresPanel() {
   const [selected, setSelected] = useState(null);
+  const [exploreMore, setExploreMore] = useState(false);
+
+  const selectCategory = (label) => {
+    const next = selected === label ? null : label;
+    setSelected(next);
+    setExploreMore(false);
+  };
+
+  const processes = selected ? PROCEDURE_PROCESSES[selected] || [] : [];
+
   return (
     <div>
       <div className="mb-5">
@@ -258,7 +477,7 @@ function ProceduresPanel() {
               key={cat.label}
               whileHover={{ y: -3 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setSelected(isSelected ? null : cat.label)}
+              onClick={() => selectCategory(cat.label)}
               className={`rounded-2xl border p-4 cursor-pointer transition-all duration-200
                 ${isSelected ? `${c.bg} ${c.border} shadow-md` : "bg-white border-stone-100 hover:border-stone-200"}`}
             >
@@ -270,7 +489,7 @@ function ProceduresPanel() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   className={`text-xs font-medium mt-2 ${c.text}`}>
-                  Explore →
+                  Tap below for steps & apply →
                 </motion.p>
               )}
             </motion.div>
@@ -278,26 +497,61 @@ function ProceduresPanel() {
         })}
       </div>
 
-      <AnimatePresence>
-        {selected && (
+      <AnimatePresence mode="wait">
+        {selected ? (
           <motion.div
+            key={selected}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
             className="mt-4 bg-stone-900 text-white rounded-2xl p-5"
           >
-            <p className="text-xs text-stone-400 uppercase tracking-widest mb-2">Selected Procedure</p>
-            <p className="font-serif text-lg font-normal mb-3">{selected}</p>
-            <div className="flex gap-2">
-              <button className="flex-1 py-2.5 bg-emerald-700 rounded-xl text-xs font-medium cursor-pointer border-none hover:bg-emerald-600 transition-colors">
-                Start Procedure
-              </button>
-              <button className="flex-1 py-2.5 bg-white/10 border border-white/10 rounded-xl text-xs font-medium cursor-pointer hover:bg-white/20 transition-colors">
-                Learn More
-              </button>
-            </div>
+            <p className="text-xs text-stone-400 uppercase tracking-widest mb-2">Selected category</p>
+            <p className="font-serif text-lg font-normal mb-4">{selected}</p>
+
+            <button
+              type="button"
+              className="w-full py-2.5 mb-4 bg-emerald-700 rounded-xl text-xs font-medium cursor-pointer border-none hover:bg-emerald-600 transition-colors text-white"
+              onClick={() => setExploreMore((e) => !e)}
+            >
+              {exploreMore ? "Hide step-by-step processes" : "Explore more — see all processes"}
+            </button>
+
+            {exploreMore && (
+              <div className="border-t border-white/10 pt-4 mb-4">
+                <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">All processes in this category</p>
+                {processes.length === 0 ? (
+                  <p className="text-sm text-stone-400">Detailed steps for this category will appear here soon. Use SaathiSeva on the homepage for AI-guided help.</p>
+                ) : (
+                  <div className="flex flex-col gap-5 max-h-96 overflow-y-auto pr-1 -mr-1">
+                    {processes.map((proc) => (
+                      <div key={proc.title} className="rounded-xl bg-white/5 border border-white/10 p-4">
+                        <p className="text-sm font-medium text-emerald-300 mb-2">{proc.title}</p>
+                        <ol className="list-decimal list-inside space-y-1.5 text-xs text-stone-300 leading-relaxed">
+                          {proc.steps.map((step, i) => (
+                            <li key={i} className="pl-0.5 marker:text-stone-500">{step}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Link
+              to="/"
+              className="block w-full py-3.5 rounded-xl text-sm font-semibold cursor-pointer border-none bg-emerald-500 text-stone-900 hover:bg-emerald-400 transition-colors text-center no-underline"
+              style={{ boxShadow: "0 4px 20px rgba(52,211,153,0.35)" }}
+            >
+              Apply with SaathiSeva
+            </Link>
+            <p className="text-[11px] text-stone-500 text-center mt-2.5 leading-relaxed">
+              Opens the homepage to upload documents, use the AI assistant, and start your application.
+            </p>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </div>
   );
@@ -306,7 +560,7 @@ function ProceduresPanel() {
 /* ─────────── FORM CARD with TIMELINE ─────────── */
 function FormCard({ form }) {
   const [open, setOpen] = useState(false);
-  const c = COLOR_MAP[form.color];
+  const c = colorStyles(form.color);
   return (
     <div className={`rounded-2xl border overflow-hidden ${c.bg} ${c.border}`}>
       <div className="p-5">
@@ -411,7 +665,7 @@ function FormsPanel({ forms }) {
 }
 
 /* ─────────── CHATBOT PANEL ─────────── */
-function ChatbotPanel() {
+function ChatbotPanel({ auth, onApplicationsChanged }) {
   const [messages, setMessages]   = useState(INITIAL_MESSAGES);
   const [input, setInput]         = useState("");
   const [listening, setListening] = useState(false);
@@ -419,20 +673,98 @@ function ChatbotPanel() {
   const [lang, setLang]           = useState("English");
   const bottomRef                 = useRef(null);
   const recogRef                  = useRef(null);
+  const [applyModal, setApplyModal] = useState(null);
+  const [applyForm, setApplyForm] = useState({
+    fullName: USER.name,
+    mobile: USER.phone,
+    district: USER.district,
+    notes: "",
+  });
+  const [applySaving, setApplySaving] = useState(false);
+  const [applyError, setApplyError] = useState("");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, applyModal]);
+
+  const openApplyModal = (apply) => {
+    if (!apply?.schemeId) return;
+    setApplyError("");
+    setApplyForm({
+      fullName: USER.name,
+      mobile: USER.phone,
+      district: USER.district,
+      notes: "",
+    });
+    setApplyModal(apply);
+  };
+
+  const submitApplyForm = (e) => {
+    e.preventDefault();
+    if (!applyModal) return;
+    const { fullName, mobile, district, notes } = applyForm;
+    if (!fullName.trim() || !mobile.trim()) {
+      setApplyError("Please enter your name and mobile number.");
+      return;
+    }
+    setApplySaving(true);
+    setApplyError("");
+    try {
+      const now = new Date();
+      createApplication({
+        id: `APP-${now.getTime()}`,
+        schemeId: applyModal.schemeId,
+        schemeName: applyModal.schemeName,
+        category: applyModal.category || "General",
+        userId: auth?.userId || "",
+        state: USER.state,
+        status: "Pending",
+        progress: 20,
+        filed: now.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+        formData: { fullName: fullName.trim(), mobile: mobile.trim(), district: district.trim(), notes: notes.trim() },
+        requiredDocuments: [],
+        uploadedFiles: {},
+        timeline: [
+          { label: "Request submitted via SaathiBot", done: true, date: now.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) },
+          { label: "Documents verification", done: false, date: "Pending" },
+          { label: "Application processing", done: false, date: "Pending" },
+        ],
+      });
+      const savedTitle = applyModal.schemeName;
+      onApplicationsChanged?.();
+      setApplyModal(null);
+      setMessages((m) => [
+        ...m,
+        {
+          id: `b-ok-${Date.now()}`,
+          role: "bot",
+          text: `Saved your application for “${savedTitle}”. Open My Forms in the sidebar to track progress.`,
+        },
+      ]);
+    } catch {
+      setApplyError("Could not save. Please try again.");
+    } finally {
+      setApplySaving(false);
+    }
+  };
 
   const sendMessage = (text) => {
     if (!text.trim()) return;
-    const userMsg = { role: "user", text };
-    const reply = BOT_REPLIES[text] || "I'm looking into that for you. This procedure typically involves visiting your nearest government office. Would you like me to find the exact steps?";
-    setMessages(m => [...m, userMsg]);
+    const trimmed = text.trim();
+    const userMsg = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+    const known = matchChatKnowledge(trimmed);
+    const reply = known?.text ?? GENERIC_BOT_REPLY;
+    const apply = known?.apply ?? null;
+    setMessages((m) => [...m, userMsg]);
     setInput("");
     setTimeout(() => {
-      const botMsg = { role: "bot", text: reply };
-      setMessages(m => [...m, botMsg]);
+      const botMsg = {
+        id: `b-${Date.now()}`,
+        role: "bot",
+        text: reply,
+        ...(apply ? { apply } : {}),
+      };
+      setMessages((m) => [...m, botMsg]);
       speakText(reply);
     }, 900);
   };
@@ -505,13 +837,13 @@ function ChatbotPanel() {
 
       {/* messages */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1 mb-4" style={{ scrollbarWidth: "thin" }}>
-        {messages.map((msg, i) => (
+        {messages.map((msg) => (
           <motion.div
-            key={i}
+            key={msg.id}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex w-full min-w-0 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             {msg.role === "bot" && (
               <div className="w-7 h-7 rounded-xl bg-emerald-700 flex items-center justify-center shrink-0 mr-2 mt-0.5">
@@ -523,18 +855,34 @@ function ChatbotPanel() {
                 </svg>
               </div>
             )}
-            <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line
-              ${msg.role === "user"
-                ? "bg-emerald-700 text-white rounded-br-sm"
-                : "bg-white border border-stone-100 text-stone-800 rounded-bl-sm shadow-sm"
-              }`}>
-              {msg.text}
-              {msg.role === "bot" && (
-                <button
-                  onClick={() => speakText(msg.text)}
-                  className="mt-2 flex items-center gap-1 text-[10px] text-emerald-600 cursor-pointer bg-transparent border-none p-0 hover:text-emerald-800 transition-colors">
-                  <SpeakerIcon /> Listen
-                </button>
+            <div className={`flex flex-col max-w-[min(100%,22rem)] ${msg.role === "user" ? "items-end" : "items-stretch gap-2"}`}>
+              <div
+                className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line
+                ${msg.role === "user"
+                  ? "bg-emerald-700 text-white rounded-br-sm"
+                  : "bg-white border border-stone-100 text-stone-800 rounded-bl-sm shadow-sm"
+                }`}>
+                {msg.text}
+                {msg.role === "bot" && (
+                  <button
+                    type="button"
+                    onClick={() => speakText(msg.text)}
+                    className="mt-2 flex items-center gap-1 text-[10px] text-emerald-600 cursor-pointer bg-transparent border-none p-0 hover:text-emerald-800 transition-colors">
+                    <SpeakerIcon /> Listen
+                  </button>
+                )}
+              </div>
+              {msg.role === "bot" && msg.apply && (
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => openApplyModal(msg.apply)}
+                  className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs font-semibold text-white border-none cursor-pointer hover:bg-emerald-800 transition-colors shadow-[0_4px_14px_rgba(5,150,105,0.28)]">
+                  Apply with SaathiSeva
+                </motion.button>
               )}
             </div>
           </motion.div>
@@ -610,6 +958,85 @@ function ChatbotPanel() {
           🎙 Listening… speak now
         </p>
       )}
+
+      <AnimatePresence>
+        {applyModal && (
+          <motion.div
+            key="apply-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm"
+            onClick={() => !applySaving && setApplyModal(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-white border border-stone-200 shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+              <p className="text-xs font-medium uppercase tracking-wider text-emerald-700 mb-1">Apply with SaathiSeva</p>
+              <h3 className="font-serif text-lg text-stone-900 mb-1">{applyModal.schemeName}</h3>
+              <p className="text-xs text-stone-500 mb-4">{applyModal.category}</p>
+              <form onSubmit={submitApplyForm} className="flex flex-col gap-3">
+                <label className="block">
+                  <span className="text-xs font-medium text-stone-600">Full name</span>
+                  <input
+                    required
+                    value={applyForm.fullName}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, fullName: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-stone-600">Mobile</span>
+                  <input
+                    required
+                    type="tel"
+                    value={applyForm.mobile}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, mobile: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-stone-600">District</span>
+                  <input
+                    value={applyForm.district}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, district: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-stone-600">Notes (optional)</span>
+                  <textarea
+                    value={applyForm.notes}
+                    onChange={(e) => setApplyForm((f) => ({ ...f, notes: e.target.value }))}
+                    rows={3}
+                    placeholder="Anything we should know for your application…"
+                    className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-400 resize-y min-h-[72px]"
+                  />
+                </label>
+                {applyError && <p className="text-xs text-rose-600">{applyError}</p>}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={applySaving}
+                    onClick={() => setApplyModal(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-medium text-stone-700 cursor-pointer hover:bg-stone-50 disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={applySaving}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold border-none cursor-pointer hover:bg-emerald-800 disabled:opacity-60">
+                    {applySaving ? "Saving…" : "Save application"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -708,7 +1135,7 @@ export default function Dashboard({ onSignOut, auth }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [forms, setForms] = useState(ACTIVE_FORMS);
 
-  useEffect(() => {
+  const syncFormsFromStorage = useCallback(() => {
     const apps = getApplications()
       .filter((app) => !auth?.userId || app.userId === auth.userId)
       .map((app, idx) => ({
@@ -724,11 +1151,15 @@ export default function Dashboard({ onSignOut, auth }) {
     if (apps.length) setForms(apps);
   }, [auth?.userId]);
 
+  useEffect(() => {
+    syncFormsFromStorage();
+  }, [syncFormsFromStorage]);
+
   const panels = {
     overview:   <OverviewPanel setActiveTab={setActiveTab} forms={forms} />,
     procedures: <ProceduresPanel />,
     forms:      <FormsPanel forms={forms} />,
-    chatbot:    <ChatbotPanel />,
+    chatbot:    <ChatbotPanel auth={auth} onApplicationsChanged={syncFormsFromStorage} />,
     profile:    <ProfilePanel onSignOut={onSignOut} />,
   };
 

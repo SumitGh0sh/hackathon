@@ -717,7 +717,7 @@ function DocumentLineIcon() {
 }
 
 /* Structured service card shown under assistant messages when intent matches */
-function ServiceResponseCard({ service, onApply }) {
+function ServiceResponseCard({ service }) {
   if (!service) return null;
   const { label, documents, eligibility, processingTime } = service;
 
@@ -765,16 +765,6 @@ function ServiceResponseCard({ service, onApply }) {
           )}
         </div>
       )}
-
-      <motion.button
-        type="button"
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => onApply?.(service.key)}
-        className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-medium text-white border-none cursor-pointer hover:bg-emerald-800 transition-colors"
-        style={{ boxShadow: "0 4px 16px rgba(5,150,105,0.3)" }}>
-        Apply with SaathiSeva
-      </motion.button>
     </motion.div>
   );
 }
@@ -783,7 +773,6 @@ function ServiceResponseCard({ service, onApply }) {
 function HeroChatbot({
   suggestions,
   messages,
-  serviceCard,
   isTyping,
   inputValue,
   onInputChange,
@@ -882,12 +871,26 @@ function HeroChatbot({
                     className={`px-4 py-3 rounded-2xl text-sm leading-6 shadow-sm ${
                       message.role === "user"
                         ? "bg-emerald-700 text-white rounded-br-md rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl"
-                        : "bg-white text-stone-800 rounded-bl-md rounded-tr-2xl rounded-tl-2xl rounded-br-2xl border border-stone-100"
+                        : "bg-white text-stone-800 rounded-bl-md rounded-tr-2xl rounded-tl-2xl rounded-br-2xl border border-stone-100 whitespace-pre-wrap"
                     }`}>
                     {message.text}
                   </div>
                   {message.role === "assistant" && message.card && (
-                    <ServiceResponseCard service={message.card} onApply={onApplyClick} />
+                    <>
+                      <ServiceResponseCard service={message.card} />
+                      <motion.button
+                        type="button"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => onApplyClick?.(message.card.key)}
+                        className="mt-3 w-full max-w-[min(100%,22rem)] rounded-xl bg-emerald-700 py-3 text-sm font-semibold text-white border-none cursor-pointer hover:bg-emerald-800 transition-colors"
+                        style={{ boxShadow: "0 4px 16px rgba(5,150,105,0.3)" }}>
+                        Apply with SaathiSeva
+                      </motion.button>
+                    </>
                   )}
                 </div>
               </motion.div>
@@ -922,8 +925,9 @@ function HeroChatbot({
 }
 
 /* ─── main ────────────────────────────────────────────────────── */
-export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSignOut }) {
+export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSignOut, openLoginOnMount }) {
   const navigate = useNavigate();
+  const redirectAfterLoginRef = useRef(false);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState([
     {
@@ -933,7 +937,6 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
-  const [serviceResponse, setServiceResponse] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(!!isAuthenticated);
   const [langOpen,  setLangOpen]  = useState(false);
   const [selLang,   setSelLang]   = useState("English");
@@ -944,6 +947,18 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
   useEffect(() => {
     setIsLoggedIn(!!isAuthenticated);
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (openLoginOnMount && !isAuthenticated) {
+      setMode("Login");
+      setModal(true);
+    }
+  }, [openLoginOnMount, isAuthenticated]);
+
+  const handleAuthSuccessWithRedirect = (payload) => {
+    redirectAfterLoginRef.current = true;
+    onAuthSuccess?.(payload);
+  };
 
   // Estimator state
   const [estimatorQuery, setEstimatorQuery] = useState("");
@@ -1006,15 +1021,15 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
       const service = SERVICE_GUIDE[serviceKey];
       let procedure = "";
       if (serviceKey === "income_certificate") {
-        procedure = `Here's the step-by-step procedure to apply for an Income Certificate:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Visit your local municipal office or tehsil office.\n3. Fill out the income certificate application form.\n4. Submit the form along with your documents and pay any applicable fee.\n5. Collect your certificate after verification (usually ${service.processingTime}).\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+        procedure = `Here's the step-by-step procedure to apply for an Income Certificate:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Visit your local municipal office or tehsil office.\n3. Fill out the income certificate application form.\n4. Submit the form along with your documents and pay any applicable fee.\n5. Collect your certificate after verification (usually ${service.processingTime}).\n\nEligibility: ${service.eligibility}`;
       } else if (serviceKey === "pan_card") {
-        procedure = `Here's the step-by-step procedure to apply for a PAN Card:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Apply online through the NSDL website or authorized centers.\n3. Fill the online application form with your details.\n4. Upload scanned documents and submit.\n5. Pay the application fee and track your application status.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+        procedure = `Here's the step-by-step procedure to apply for a PAN Card:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Apply online through the NSDL website or authorized centers.\n3. Fill the online application form with your details.\n4. Upload scanned documents and submit.\n5. Pay the application fee and track your application status.\n\nEligibility: ${service.eligibility}`;
       } else if (serviceKey === "driving_license") {
-        procedure = `Here's the step-by-step procedure to apply for a Driving License:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Pass the learner's license test if you don't have one.\n3. Apply at your local RTO (Regional Transport Office).\n4. Complete the driving test and submit documents.\n5. Collect your license after approval.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+        procedure = `Here's the step-by-step procedure to apply for a Driving License:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Pass the learner's license test if you don't have one.\n3. Apply at your local RTO (Regional Transport Office).\n4. Complete the driving test and submit documents.\n5. Collect your license after approval.\n\nEligibility: ${service.eligibility}`;
       } else if (serviceKey === "passport") {
-        procedure = `Here's the step-by-step procedure to apply for a Passport:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Apply online through the Passport Seva website.\n3. Book an appointment at a Passport Seva Kendra.\n4. Visit the center with documents for verification.\n5. Collect your passport after processing.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+        procedure = `Here's the step-by-step procedure to apply for a Passport:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Apply online through the Passport Seva website.\n3. Book an appointment at a Passport Seva Kendra.\n4. Visit the center with documents for verification.\n5. Collect your passport after processing.\n\nEligibility: ${service.eligibility}`;
       } else if (serviceKey === "aadhaar_card") {
-        procedure = `Here's the step-by-step procedure to apply for an Aadhaar Card:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Visit the nearest Aadhaar enrollment center.\n3. Fill the enrollment form and provide biometrics.\n4. Submit documents for verification.\n5. Collect your Aadhaar card after processing.\n\nEligibility: ${service.eligibility}\n\nReady to apply with SaathiSeva?`;
+        procedure = `Here's the step-by-step procedure to apply for an Aadhaar Card:\n\n1. Gather all required documents: ${service.documents.join(", ")}.\n2. Visit the nearest Aadhaar enrollment center.\n3. Fill the enrollment form and provide biometrics.\n4. Submit documents for verification.\n5. Collect your Aadhaar card after processing.\n\nEligibility: ${service.eligibility}`;
       }
       return procedure;
     }
@@ -1050,9 +1065,13 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
       const reply = getAiResponse(trimmed, serviceKey);
       setChatMessages((prev) => [
         ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", text: reply },
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          text: reply,
+          ...(serviceCard ? { card: serviceCard } : {}),
+        },
       ]);
-      setServiceResponse(serviceCard);
       setIsTyping(false);
     }, 900);
   };
@@ -1125,17 +1144,21 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      const pending = localStorage.getItem("pendingSchemeApply");
-      if (pending && role === "user") {
-        try {
-          const parsed = JSON.parse(pending);
-          navigate(`/apply/${parsed.id}`, { state: { scheme: parsed, detectedState: parsed.detectedState || "Jharkhand" } });
-          return;
-        } catch (error) {
-          localStorage.removeItem("pendingSchemeApply");
-        }
+    if (!isAuthenticated) return;
+    const pending = localStorage.getItem("pendingSchemeApply");
+    if (pending && role === "user") {
+      try {
+        const parsed = JSON.parse(pending);
+        localStorage.removeItem("pendingSchemeApply");
+        redirectAfterLoginRef.current = false;
+        navigate(`/apply/${parsed.id}`, { state: { scheme: parsed, detectedState: parsed.detectedState || "Jharkhand" } });
+        return;
+      } catch (error) {
+        localStorage.removeItem("pendingSchemeApply");
       }
+    }
+    if (redirectAfterLoginRef.current) {
+      redirectAfterLoginRef.current = false;
       navigate(role === "admin" ? "/admin" : "/dashboard");
     }
   }, [isAuthenticated, role, navigate]);
@@ -1199,7 +1222,7 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
         onClose={() => setModal(false)}
         mode={mode}
         setMode={setMode}
-        onAuthSuccess={onAuthSuccess}
+        onAuthSuccess={handleAuthSuccessWithRedirect}
         onOpenAdminDetails={() => navigate("/admin-details")}
       />
 
@@ -1282,12 +1305,21 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                 </button>
               </>
             ) : (
-              <button
-                onClick={onSignOut}
-                className="text-sm border border-rose-200 rounded-xl px-4 py-2 bg-rose-50 text-rose-700 cursor-pointer hover:border-rose-300 transition-colors font-medium"
-              >
-                Sign out
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate(role === "admin" ? "/admin" : "/dashboard")}
+                  className="btn-shadow text-sm rounded-xl px-4 py-2 bg-emerald-700 text-white cursor-pointer font-medium hover:bg-emerald-800 transition-colors border-none whitespace-nowrap"
+                >
+                  Go to dashboard
+                </button>
+                <button
+                  onClick={onSignOut}
+                  className="text-sm border border-rose-200 rounded-xl px-4 py-2 bg-rose-50 text-rose-700 cursor-pointer hover:border-rose-300 transition-colors font-medium"
+                >
+                  Sign out
+                </button>
+              </>
             )}
 
             {/* hamburger */}
@@ -1313,15 +1345,36 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
                     {item}
                   </a>
                 ))}
-                <div className="flex gap-3 pt-4">
-                  <button onClick={openLogin}
-                    className="flex-1 py-3 border border-stone-200 rounded-xl text-sm text-stone-700 cursor-pointer bg-white">
-                    Login
-                  </button>
-                  <button onClick={openReg}
-                    className="flex-1 py-3 rounded-xl text-sm text-white cursor-pointer bg-emerald-700 border-none">
-                    Register
-                  </button>
+                <div className="flex flex-col gap-3 pt-4">
+                  {!isAuthenticated ? (
+                    <div className="flex gap-3">
+                      <button onClick={openLogin}
+                        className="flex-1 py-3 border border-stone-200 rounded-xl text-sm text-stone-700 cursor-pointer bg-white">
+                        Login
+                      </button>
+                      <button onClick={openReg}
+                        className="flex-1 py-3 rounded-xl text-sm text-white cursor-pointer bg-emerald-700 border-none">
+                        Register
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { navigate(role === "admin" ? "/admin" : "/dashboard"); setMobileNav(false); }}
+                        className="w-full py-3 rounded-xl text-sm text-white cursor-pointer bg-emerald-700 border-none font-medium"
+                      >
+                        Go to dashboard
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { onSignOut(); setMobileNav(false); }}
+                        className="w-full py-3 border border-rose-200 rounded-xl text-sm text-rose-700 cursor-pointer bg-rose-50 font-medium"
+                      >
+                        Sign out
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1365,7 +1418,6 @@ export default function LandingPage({ isAuthenticated, role, onAuthSuccess, onSi
               <HeroChatbot
                 suggestions={CHAT_SUGGESTIONS}
                 messages={chatMessages}
-                serviceCard={serviceResponse}
                 isTyping={isTyping}
                 inputValue={chatInput}
                 onInputChange={setChatInput}

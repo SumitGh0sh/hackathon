@@ -1,6 +1,20 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getApplications, updateApplicationStatus } from "../utils/applications";
+import { appendBlockchainEntry, getBlockchainLedger } from "../utils/adminBlockchain";
+import { loadAdminBots, saveAdminBots } from "../utils/adminBotsStorage";
+import {
+  ADMIN_ROLES,
+  getStoredAdminRole,
+  getPermissions,
+  canSetStatus,
+  setStoredAdminRole,
+} from "../utils/adminRoles";
+import {
+  buildMergedAdminQueries,
+  summarizeUsersFromApplications,
+  analyticsFromApplications,
+} from "../utils/adminQueries";
 
 /* ── Google Fonts ── */
 const FontLink = () => (
@@ -36,28 +50,28 @@ const DEPARTMENTS = [
   "Certificates",
 ];
 
-const STATUSES = ["All", "Pending", "In Review", "Escalated", "Resolved", "Rejected"];
+const STATUSES = ["All", "Pending", "In Review", "Escalated", "Approved", "Resolved", "Rejected"];
 
 const QUERIES = [
   { id: "QRY-1041", citizen: "Rahul Sharma",   dept: "Benefits & Welfare",  subject: "Ration Card Application",          status: "In Review",  priority: "high",   filed: "12 Mar 2025", district: "Patna",    doc: true,  hash: "0x3a9f…c12e" },
   { id: "QRY-1042", citizen: "Sunita Devi",    dept: "Revenue & Land",      subject: "Land Mutation Survey #441",        status: "Pending",    priority: "medium", filed: "1 Apr 2025",  district: "Gaya",     doc: true,  hash: "0x7b2d…88af" },
   { id: "QRY-1043", citizen: "Mohan Prasad",   dept: "Health & Insurance",  subject: "Ayushman Bharat Card Dispatch",    status: "Escalated",  priority: "high",   filed: "2 Feb 2025",  district: "Muzaffarpur", doc: false, hash: "0xf104…33bc" },
-  { id: "QRY-1044", citizen: "Lakshmi Rai",    dept: "Identity & Aadhaar",  subject: "Aadhaar Name Correction",          status: "Resolved",   priority: "low",    filed: "20 Jan 2025", district: "Patna",    doc: true,  hash: "0x9c6a…e77d" },
+  { id: "QRY-1044", citizen: "Lakshmi Rai",    dept: "Identity & Aadhaar",  subject: "Aadhaar Name Correction",          status: "Approved",   priority: "low",    filed: "20 Jan 2025", district: "Patna",    doc: true,  hash: "0x9c6a…e77d" },
   { id: "QRY-1045", citizen: "Arjun Singh",    dept: "Education",           subject: "Scholarship Application 2025",     status: "Pending",    priority: "medium", filed: "5 Apr 2025",  district: "Nalanda",  doc: true,  hash: "0x2e81…a034" },
   { id: "QRY-1046", citizen: "Poonam Kumari",  dept: "Certificates",        subject: "Birth Certificate Correction",     status: "In Review",  priority: "low",    filed: "18 Mar 2025", district: "Bhagalpur",doc: false, hash: "0xd5c3…1190" },
   { id: "QRY-1047", citizen: "Dev Narayan",    dept: "Legal & Courts",      subject: "FIR Status — Case #2210",          status: "Escalated",  priority: "high",   filed: "29 Mar 2025", district: "Patna",    doc: true,  hash: "0x0af9…55c8" },
-  { id: "QRY-1048", citizen: "Rekha Mishra",   dept: "Jobs & Business",     subject: "MSME Licence Renewal",             status: "Resolved",   priority: "low",    filed: "8 Feb 2025",  district: "Vaishali", doc: true,  hash: "0x6b44…fde2" },
+  { id: "QRY-1048", citizen: "Rekha Mishra",   dept: "Jobs & Business",     subject: "MSME Licence Renewal",             status: "Approved",   priority: "low",    filed: "8 Feb 2025",  district: "Vaishali", doc: true,  hash: "0x6b44…fde2" },
 ];
 
 const BLOCKCHAIN_RECORDS = [
   { block: 100421, hash: "0x3a9f4c12e", prev: "0x1b7e9a03f", tx: "QRY-1041 → In Review",   timestamp: "12 Mar 2025 09:14", valid: true  },
   { block: 100422, hash: "0x7b2d88af1", prev: "0x3a9f4c12e", tx: "QRY-1042 → Filed",        timestamp: "1 Apr 2025 11:30",  valid: true  },
   { block: 100423, hash: "0xf10433bc2", prev: "0x7b2d88af1", tx: "QRY-1043 → Escalated",    timestamp: "2 Feb 2025 14:52",  valid: true  },
-  { block: 100424, hash: "0x9c6ae77d3", prev: "0xf10433bc2", tx: "QRY-1044 → Resolved",     timestamp: "20 Jan 2025 10:05", valid: true  },
+  { block: 100424, hash: "0x9c6ae77d3", prev: "0xf10433bc2", tx: "QRY-1044 → Approved",     timestamp: "20 Jan 2025 10:05", valid: true  },
   { block: 100425, hash: "0x2e81a0344", prev: "0x9c6ae77d3", tx: "QRY-1045 → Filed",        timestamp: "5 Apr 2025 08:41",  valid: true  },
   { block: 100426, hash: "0xd5c311905", prev: "0x2e81a0344", tx: "QRY-1046 → In Review",    timestamp: "18 Mar 2025 13:17", valid: false },
   { block: 100427, hash: "0x0af955c86", prev: "0xd5c311905", tx: "QRY-1047 → Escalated",    timestamp: "29 Mar 2025 17:00", valid: true  },
-  { block: 100428, hash: "0x6b44fde27", prev: "0x0af955c86", tx: "QRY-1048 → Resolved",     timestamp: "8 Feb 2025 09:33",  valid: true  },
+  { block: 100428, hash: "0x6b44fde27", prev: "0x0af955c86", tx: "QRY-1048 → Approved",     timestamp: "8 Feb 2025 09:33",  valid: true  },
 ];
 
 const AI_BOTS = [
@@ -73,6 +87,7 @@ const STATUS_META = {
   "Pending":   { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200",   dot: "bg-amber-400"   },
   "In Review": { bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200",     dot: "bg-sky-400"     },
   "Escalated": { bg: "bg-rose-50",    text: "text-rose-700",    border: "border-rose-200",    dot: "bg-rose-400"    },
+  "Approved":  { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", dot: "bg-emerald-500" },
   "Resolved":  { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", dot: "bg-emerald-500" },
   "Rejected":  { bg: "bg-stone-100",  text: "text-stone-500",   border: "border-stone-200",   dot: "bg-stone-400"   },
 };
@@ -107,16 +122,28 @@ const EditIcon  = () => <Icon d="M10 2l4 4-8 8H2v-4l8-8z" />;
 const EyeIcon   = () => <Icon d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z M8 8a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />;
 const ShieldIcon= () => <Icon d="M8 1l6 2.5v5C14 12 11 14.5 8 15c-3-0.5-6-3-6-6.5v-5L8 1z" />;
 const CopyIcon  = () => <Icon d="M5 4H3a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1v-2M6 2h6l3 3v7a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z" />;
+const AnalyticsIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" aria-hidden>
+    <path d="M2 14h12M4 10V6M8 10V3M12 10V8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const UsersNavIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" aria-hidden>
+    <path d="M11 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM3 13c0-2.2 1.8-4 4-4h.5M13 13v-1a3 3 0 00-3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
 
 /* ══════════════════════════════════════════════
-   NAV CONFIG
+   NAV CONFIG (filtered by role.permissions)
 ══════════════════════════════════════════════ */
-const NAV = [
-  { id: "overview",   label: "Overview",       icon: <DashIcon />   },
-  { id: "queries",    label: "Raised Queries",  icon: <QueryIcon />  },
-  { id: "bots",       label: "AI Bots",         icon: <BotIcon2 />   },
-  { id: "blockchain", label: "Blockchain Logs", icon: <ChainIcon />  },
-  { id: "profile",    label: "Admin Profile",   icon: <UserIcon2 />  },
+const NAV_CONFIG = [
+  { id: "overview",   label: "Overview",          icon: <DashIcon />,       perm: "dashboard" },
+  { id: "queries",    label: "Applications",    icon: <QueryIcon />,      perm: "queries" },
+  { id: "users",      label: "Users",             icon: <UsersNavIcon />,   perm: "users" },
+  { id: "analytics",  label: "Analytics",         icon: <AnalyticsIcon />,  perm: "analytics" },
+  { id: "bots",       label: "AI Bots",           icon: <BotIcon2 />,       perm: "bots" },
+  { id: "blockchain", label: "Blockchain Logs",   icon: <ChainIcon />,      perm: "blockchain" },
+  { id: "profile",    label: "Admin Profile",     icon: <UserIcon2 />,      perm: "profile" },
 ];
 
 /* ══════════════════════════════════════════════
@@ -133,6 +160,88 @@ function StatusBadge({ status }) {
 }
 
 /* ══════════════════════════════════════════════
+   USERS PANEL (from application userId groups)
+══════════════════════════════════════════════ */
+function UsersPanel({ refreshTick = 0 }) {
+  const rows = useMemo(() => summarizeUsersFromApplications(), [refreshTick]);
+  return (
+    <div>
+      <div className="mb-5">
+        <p className="text-xs text-emerald-700 uppercase tracking-widest font-medium mb-1">Directory</p>
+        <h2 className="font-serif text-2xl font-normal text-stone-900">Users & applicants</h2>
+        <p className="text-sm text-stone-500 mt-1">Derived from saved scheme applications (local storage).</p>
+      </div>
+      <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+        <div className="px-4 py-3 border-b border-stone-50 flex justify-between items-center">
+          <p className="text-xs text-stone-400 uppercase tracking-widest font-medium">User ID</p>
+          <p className="text-xs text-stone-400 uppercase tracking-widest font-medium">Applications</p>
+        </div>
+        {rows.length === 0 ? (
+          <p className="p-8 text-center text-sm text-stone-400">No applications yet. Data appears when citizens submit forms.</p>
+        ) : (
+          rows.map((r) => (
+            <div key={r.userId} className="px-4 py-3 flex items-center justify-between border-b border-stone-50 last:border-none gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-mono text-stone-500 truncate">{r.userId || "—"}</p>
+                <p className="text-sm font-medium text-stone-800 truncate mt-0.5">Last: {r.lastScheme}</p>
+              </div>
+              <span className="text-sm font-semibold text-emerald-700 shrink-0">{r.count}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   ANALYTICS PANEL
+══════════════════════════════════════════════ */
+function AnalyticsPanel({ refreshTick = 0 }) {
+  const { total, byStatus, byCategory } = useMemo(() => analyticsFromApplications(), [refreshTick]);
+  return (
+    <div>
+      <div className="mb-5">
+        <p className="text-xs text-emerald-700 uppercase tracking-widest font-medium mb-1">Insights</p>
+        <h2 className="font-serif text-2xl font-normal text-stone-900">Analytics</h2>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        <div className="rounded-2xl border border-stone-100 bg-white p-4">
+          <p className="font-serif text-3xl font-medium text-stone-800">{total}</p>
+          <p className="text-xs text-stone-500 mt-1">Total applications</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl border border-stone-100 p-4">
+          <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-3">By status</p>
+          <ul className="space-y-2">
+            {Object.entries(byStatus).map(([k, v]) => (
+              <li key={k} className="flex justify-between text-sm">
+                <span className="text-stone-600">{k}</span>
+                <span className="font-semibold text-stone-900">{v}</span>
+              </li>
+            ))}
+            {total === 0 && <li className="text-sm text-stone-400">No data yet</li>}
+          </ul>
+        </div>
+        <div className="bg-white rounded-2xl border border-stone-100 p-4">
+          <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-3">By category</p>
+          <ul className="space-y-2">
+            {Object.entries(byCategory).map(([k, v]) => (
+              <li key={k} className="flex justify-between text-sm">
+                <span className="text-stone-600 truncate pr-2">{k}</span>
+                <span className="font-semibold text-stone-900 shrink-0">{v}</span>
+              </li>
+            ))}
+            {total === 0 && <li className="text-sm text-stone-400">No data yet</li>}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
    OVERVIEW PANEL
 ══════════════════════════════════════════════ */
 function OverviewPanel({ setActiveTab, queries }) {
@@ -140,7 +249,7 @@ function OverviewPanel({ setActiveTab, queries }) {
     { n: queries.filter(q => q.status === "Pending").length,   label: "Pending",   color: "text-amber-700",   bg: "bg-amber-50 border-amber-100"    },
     { n: queries.filter(q => q.status === "In Review").length, label: "In Review", color: "text-sky-700",     bg: "bg-sky-50 border-sky-100"        },
     { n: queries.filter(q => q.status === "Escalated").length, label: "Escalated", color: "text-rose-700",    bg: "bg-rose-50 border-rose-100"      },
-    { n: queries.filter(q => q.status === "Approved" || q.status === "Resolved").length,  label: "Approved",  color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
+    { n: queries.filter(q => q.status === "Approved" || q.status === "Resolved").length, label: "Approved / Done", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
   ];
 
   return (
@@ -216,12 +325,24 @@ function OverviewPanel({ setActiveTab, queries }) {
 /* ══════════════════════════════════════════════
    QUERY DETAIL MODAL
 ══════════════════════════════════════════════ */
-function QueryModal({ query, onClose, onStatusChange }) {
-  const [status, setStatus] = useState(query.status);
+const STATUS_OPTIONS = ["Pending", "In Review", "Escalated", "Approved", "Resolved", "Rejected"];
+
+function QueryModal({ query, onClose, onStatusChange, canWrite, adminRole }) {
+  const allowedStatuses = STATUS_OPTIONS.filter((s) => canSetStatus(adminRole, s));
+  const base = STATUS_OPTIONS.includes(query.status)
+    ? query.status
+    : query.status === "Resolved"
+      ? "Approved"
+      : "Pending";
+  const normalized = allowedStatuses.includes(base) ? base : allowedStatuses[0] || "Pending";
+  const [status, setStatus] = useState(normalized);
   const [note, setNote] = useState("");
+  const raw = query.rawApp;
 
   const handleSave = () => {
-    onStatusChange(query.id, status);
+    if (!canWrite || !allowedStatuses.length) return;
+    if (!allowedStatuses.includes(status)) return;
+    onStatusChange(query.id, status, note);
     onClose();
   };
 
@@ -232,28 +353,32 @@ function QueryModal({ query, onClose, onStatusChange }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 8 }}
         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto"
       >
-        {/* header */}
-        <div className="bg-stone-900 text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-stone-900 text-white px-6 py-4 flex items-center justify-between sticky top-0 z-10">
           <div>
             <p className="text-xs text-stone-400 font-medium">{query.id}</p>
             <p className="font-serif text-lg font-normal mt-0.5">{query.subject}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/10 border-none text-white flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors">
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-xl bg-white/10 border-none text-white flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors">
             <XIcon />
           </button>
         </div>
 
         <div className="p-6 flex flex-col gap-4">
-          {/* meta grid */}
+          {!canWrite && (
+            <p className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              Your role is read-only for status changes. You can still review details below.
+            </p>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Citizen",    value: query.citizen  },
-              { label: "Department", value: query.dept     },
-              { label: "District",   value: query.district },
-              { label: "Filed",      value: query.filed    },
-            ].map(r => (
+              { label: "Citizen", value: query.citizen },
+              { label: "Department", value: query.dept },
+              { label: "District / State", value: query.district },
+              { label: "Filed", value: query.filed },
+            ].map((r) => (
               <div key={r.label} className="bg-stone-50 rounded-xl p-3">
                 <p className="text-[10px] text-stone-400 uppercase tracking-wider">{r.label}</p>
                 <p className="text-sm font-medium text-stone-800 mt-0.5">{r.value}</p>
@@ -261,38 +386,45 @@ function QueryModal({ query, onClose, onStatusChange }) {
             ))}
           </div>
 
-          {/* blockchain hash */}
+          {raw?.formData && (
+            <div>
+              <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-2">Submitted form</p>
+              <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 text-xs font-mono text-stone-700 max-h-40 overflow-y-auto whitespace-pre-wrap break-all">
+                {JSON.stringify(raw.formData, null, 2)}
+              </div>
+            </div>
+          )}
+
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-3">
             <ShieldIcon />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-emerald-600 uppercase tracking-wider font-semibold">Blockchain Hash</p>
+              <p className="text-[10px] text-emerald-600 uppercase tracking-wider font-semibold">Record hash</p>
               <p className="text-xs font-mono text-emerald-800 truncate mt-0.5">{query.hash}</p>
             </div>
           </div>
 
-          {/* document */}
           {query.doc && (
             <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 flex items-center gap-3">
               <span className="text-sky-600"><DocIcon2 /></span>
-              <p className="text-sm text-sky-700 font-medium flex-1">Supporting document attached</p>
-              <button className="text-xs font-semibold text-sky-700 bg-white border border-sky-200 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-sky-100 transition-colors">
-                Download
-              </button>
+              <p className="text-sm text-sky-700 font-medium flex-1">Supporting uploads present</p>
             </div>
           )}
 
-          {/* status change */}
           <div>
-            <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-2">Update Status</p>
+            <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-2">Update status</p>
             <div className="flex flex-wrap gap-2">
-              {["Pending","In Review","Escalated","Resolved","Rejected"].map(s => {
+              {STATUS_OPTIONS.map((s) => {
                 const m = STATUS_META[s];
+                const disabled = !canWrite || !allowedStatuses.includes(s);
                 return (
                   <button
                     key={s}
-                    onClick={() => setStatus(s)}
-                    className={`text-xs font-semibold px-3 py-1.5 rounded-full border cursor-pointer transition-all duration-200
-                      ${status === s ? `${m.bg} ${m.text} ${m.border}` : "bg-stone-50 text-stone-400 border-stone-200 hover:border-stone-300"}`}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => !disabled && setStatus(s)}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-200
+                      ${status === s ? `${m.bg} ${m.text} ${m.border}` : "bg-stone-50 text-stone-400 border-stone-200 hover:border-stone-300"}
+                      ${disabled ? "opacity-45 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     {s}
                   </button>
@@ -301,25 +433,29 @@ function QueryModal({ query, onClose, onStatusChange }) {
             </div>
           </div>
 
-          {/* admin note */}
           <div>
-            <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-2">Admin Note</p>
+            <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-2">Admin note</p>
             <textarea
               value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="Add a note or forward instruction…"
+              onChange={(e) => setNote(e.target.value)}
+              readOnly={!canWrite}
+              placeholder={canWrite ? "Add a note or forward instruction…" : "Notes disabled for read-only roles"}
               rows={3}
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm text-stone-800 outline-none resize-none focus:border-emerald-400 transition-colors placeholder:text-stone-300"
             />
           </div>
 
-          {/* actions */}
           <div className="flex gap-2">
-            <button onClick={handleSave} className="flex-1 py-2.5 bg-emerald-700 text-white text-sm font-semibold rounded-xl border-none cursor-pointer hover:bg-emerald-600 transition-colors">
-              Save & Process
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!canWrite || !allowedStatuses.length}
+              className="flex-1 py-2.5 bg-emerald-700 text-white text-sm font-semibold rounded-xl border-none cursor-pointer hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Save & process
             </button>
-            <button onClick={onClose} className="flex-1 py-2.5 bg-stone-100 text-stone-600 text-sm font-semibold rounded-xl border-none cursor-pointer hover:bg-stone-200 transition-colors">
-              Cancel
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-stone-100 text-stone-600 text-sm font-semibold rounded-xl border-none cursor-pointer hover:bg-stone-200 transition-colors">
+              Close
             </button>
           </div>
         </div>
@@ -331,23 +467,25 @@ function QueryModal({ query, onClose, onStatusChange }) {
 /* ══════════════════════════════════════════════
    QUERIES PANEL
 ══════════════════════════════════════════════ */
-function QueriesPanel({ initialQueries }) {
+function QueriesPanel({ queries, adminRole, canWrite, onApplicationAction }) {
   const [deptFilter, setDeptFilter] = useState("All Departments");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selected, setSelected] = useState(null);
-  const [queries, setQueries] = useState(initialQueries);
   const [search, setSearch] = useState("");
 
-  const filtered = queries.filter(q => {
-    const deptOk    = deptFilter === "All Departments" || q.dept === deptFilter;
-    const statusOk  = statusFilter === "All" || q.status === statusFilter;
-    const searchOk  = !search || q.subject.toLowerCase().includes(search.toLowerCase()) || q.citizen.toLowerCase().includes(search.toLowerCase()) || q.id.toLowerCase().includes(search.toLowerCase());
+  const filtered = queries.filter((q) => {
+    const deptOk = deptFilter === "All Departments" || q.dept === deptFilter;
+    const statusOk = statusFilter === "All" || q.status === statusFilter;
+    const searchOk =
+      !search ||
+      q.subject.toLowerCase().includes(search.toLowerCase()) ||
+      q.citizen.toLowerCase().includes(search.toLowerCase()) ||
+      q.id.toLowerCase().includes(search.toLowerCase());
     return deptOk && statusOk && searchOk;
   });
 
-  const handleStatusChange = (id, newStatus) => {
-    updateApplicationStatus(id, newStatus);
-    setQueries(prev => prev.map(q => q.id === id ? { ...q, status: newStatus } : q));
+  const handleStatusChange = (id, newStatus, note) => {
+    onApplicationAction(id, newStatus, note);
   };
 
   return (
@@ -467,6 +605,8 @@ function QueriesPanel({ initialQueries }) {
             query={selected}
             onClose={() => setSelected(null)}
             onStatusChange={handleStatusChange}
+            canWrite={canWrite}
+            adminRole={adminRole}
           />
         )}
       </AnimatePresence>
@@ -477,8 +617,8 @@ function QueriesPanel({ initialQueries }) {
 /* ══════════════════════════════════════════════
    AI BOTS PANEL
 ══════════════════════════════════════════════ */
-function BotsPanel() {
-  const [bots, setBots] = useState(AI_BOTS);
+function BotsPanel({ canToggleBots }) {
+  const [bots, setBots] = useState(() => loadAdminBots());
   const [deptFilter, setDeptFilter] = useState("All Departments");
   const [chatBot, setChatBot] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -490,7 +630,12 @@ function BotsPanel() {
   const filtered = bots.filter(b => deptFilter === "All Departments" || b.dept === deptFilter);
 
   const toggleBot = (id) => {
-    setBots(prev => prev.map(b => b.id === id ? { ...b, active: !b.active } : b));
+    if (!canToggleBots) return;
+    setBots((prev) => {
+      const next = prev.map((b) => (b.id === id ? { ...b, active: !b.active } : b));
+      saveAdminBots(next);
+      return next;
+    });
   };
 
   const openChat = (bot) => {
@@ -549,8 +694,10 @@ function BotsPanel() {
               </div>
               {/* toggle */}
               <button
+                type="button"
+                disabled={!canToggleBots}
                 onClick={() => toggleBot(bot.id)}
-                className={`relative w-10 h-5 rounded-full border-none cursor-pointer transition-colors duration-300 ${bot.active ? "bg-emerald-600" : "bg-stone-300"}`}
+                className={`relative w-10 h-5 rounded-full border-none transition-colors duration-300 ${bot.active ? "bg-emerald-600" : "bg-stone-300"} ${canToggleBots ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
               >
                 <motion.span
                   animate={{ x: bot.active ? 20 : 2 }}
@@ -646,7 +793,7 @@ function BotsPanel() {
 /* ══════════════════════════════════════════════
    BLOCKCHAIN PANEL
 ══════════════════════════════════════════════ */
-function BlockchainPanel() {
+function BlockchainPanel({ ledger }) {
   const [expanded, setExpanded] = useState(null);
   const [copied, setCopied] = useState(null);
 
@@ -655,11 +802,14 @@ function BlockchainPanel() {
     setTimeout(() => setCopied(null), 1500);
   };
 
+  const records = ledger && ledger.length ? ledger : BLOCKCHAIN_RECORDS;
+
   return (
     <div>
       <div className="mb-5">
         <p className="text-xs text-emerald-700 uppercase tracking-widest font-medium mb-1">Immutable Audit Trail</p>
         <h2 className="font-serif text-2xl font-normal text-stone-900">Blockchain Logs</h2>
+        <p className="text-sm text-stone-500 mt-1">Seed chain + live entries when admins update application status.</p>
       </div>
 
       {/* legend */}
@@ -672,7 +822,7 @@ function BlockchainPanel() {
       {/* hash chain visualisation */}
       <div className="mb-4 overflow-x-auto pb-2">
         <div className="flex items-center gap-1 min-w-max px-1">
-          {BLOCKCHAIN_RECORDS.map((r, i) => (
+          {records.map((r, i) => (
             <div key={r.block} className="flex items-center gap-1">
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -683,7 +833,7 @@ function BlockchainPanel() {
                 <span className={`w-2.5 h-2.5 rounded-full ${r.valid ? "bg-emerald-500" : "bg-rose-400"}`} />
                 <span className="text-[9px] font-mono text-stone-500">#{r.block}</span>
               </motion.button>
-              {i < BLOCKCHAIN_RECORDS.length - 1 && (
+              {i < records.length - 1 && (
                 <div className="flex items-center">
                   <div className="w-4 h-px bg-stone-300" />
                   <svg className="w-2 h-2 text-stone-300" viewBox="0 0 8 8" fill="currentColor"><path d="M0 1l5 3-5 3V1z"/></svg>
@@ -697,7 +847,7 @@ function BlockchainPanel() {
       {/* block detail */}
       <AnimatePresence>
         {expanded && (() => {
-          const r = BLOCKCHAIN_RECORDS.find(b => b.block === expanded);
+          const r = records.find((b) => b.block === expanded);
           return r ? (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -743,7 +893,7 @@ function BlockchainPanel() {
           <p className="text-xs text-stone-400 uppercase tracking-widest font-medium">Full Log</p>
         </div>
         <div className="flex flex-col divide-y divide-stone-50">
-          {BLOCKCHAIN_RECORDS.map(r => (
+          {records.map((r) => (
             <div
               key={r.block}
               className="px-4 py-3 flex items-center gap-3 hover:bg-stone-50 cursor-pointer transition-colors"
@@ -766,7 +916,20 @@ function BlockchainPanel() {
 /* ══════════════════════════════════════════════
    PROFILE PANEL
 ══════════════════════════════════════════════ */
-function ProfilePanel({ onSignOut }) {
+const PERMISSION_ROWS = [
+  { key: "dashboard", label: "Dashboard & overview" },
+  { key: "queries", label: "Process applications / queries" },
+  { key: "queriesWrite", label: "Change application status" },
+  { key: "users", label: "View user activity" },
+  { key: "analytics", label: "Analytics & reports" },
+  { key: "bots", label: "View AI bots" },
+  { key: "botsWrite", label: "Enable / disable bots" },
+  { key: "blockchain", label: "Blockchain audit log" },
+  { key: "exports", label: "Export data" },
+  { key: "profile", label: "Admin profile" },
+];
+
+function ProfilePanel({ onSignOut, adminRole, onRoleChange, permissions }) {
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState({ ...ADMIN });
   const [draft, setDraft] = useState({ ...ADMIN });
@@ -796,7 +959,7 @@ function ProfilePanel({ onSignOut }) {
           </div>
           <div>
             <h2 className="font-serif text-xl font-normal">{profile.name}</h2>
-            <p className="text-stone-400 text-sm mt-0.5">{profile.role}</p>
+            <p className="text-stone-400 text-sm mt-0.5">{ADMIN_ROLES[adminRole]?.label || profile.role}</p>
             <div className="flex items-center gap-2 mt-2">
               <span className="flex items-center gap-1 text-[10px] bg-emerald-700/40 border border-emerald-600/30 text-emerald-300 px-2.5 py-1 rounded-full">
                 <ShieldIcon /> Admin Verified
@@ -872,24 +1035,37 @@ function ProfilePanel({ onSignOut }) {
         </div>
       </div>
 
-      {/* permissions */}
+      {/* role + permissions */}
       <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-stone-50">
-          <p className="text-xs text-stone-400 uppercase tracking-widest font-medium">Permissions</p>
+          <p className="text-xs text-stone-400 uppercase tracking-widest font-medium mb-2">Active admin role</p>
+          <select
+            value={adminRole}
+            onChange={(e) => onRoleChange(e.target.value)}
+            className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2.5 bg-stone-50 text-stone-800 outline-none cursor-pointer focus:border-emerald-400"
+          >
+            {Object.entries(ADMIN_ROLES).map(([id, r]) => (
+              <option key={id} value={id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-stone-400 mt-2 leading-relaxed">{ADMIN_ROLES[adminRole]?.subtitle}</p>
         </div>
-        {[
-          { label: "Process Queries",        on: true  },
-          { label: "Escalate to State Admin", on: true  },
-          { label: "Access Blockchain Logs",  on: true  },
-          { label: "Manage AI Bots",          on: true  },
-          { label: "Export Data",             on: false },
-          { label: "User Management",         on: false },
-        ].map(p => (
-          <div key={p.label} className="flex items-center justify-between px-5 py-3 border-b border-stone-50 last:border-none">
+        <div className="px-5 py-3 border-b border-stone-50">
+          <p className="text-xs text-stone-400 uppercase tracking-widest font-medium">Capability matrix</p>
+        </div>
+        {PERMISSION_ROWS.map((p) => (
+          <div key={p.key} className="flex items-center justify-between px-5 py-3 border-b border-stone-50 last:border-none">
             <p className="text-sm text-stone-700">{p.label}</p>
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border
-              ${p.on ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-stone-50 text-stone-400 border-stone-200"}`}>
-              {p.on ? "Granted" : "Restricted"}
+            <span
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                permissions[p.key]
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-stone-50 text-stone-400 border-stone-200"
+              }`}
+            >
+              {permissions[p.key] ? "Granted" : "Restricted"}
             </span>
           </div>
         ))}
@@ -914,37 +1090,114 @@ function ProfilePanel({ onSignOut }) {
 /* ══════════════════════════════════════════════
    MAIN ADMIN DASHBOARD
 ══════════════════════════════════════════════ */
-export default function AdminDashboard({ onSignOut }) {
-  const [activeTab, setActiveTab]   = useState("overview");
+export default function AdminDashboard({ onSignOut, auth }) {
+  const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [queries, setQueries] = useState(QUERIES);
+  const [adminRole, setAdminRole] = useState(() => getStoredAdminRole());
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [queries, setQueries] = useState(() => buildMergedAdminQueries(QUERIES));
+  const [blockchainLedger, setBlockchainLedger] = useState(() => {
+    const live = getBlockchainLedger();
+    const merged = [...BLOCKCHAIN_RECORDS];
+    live.forEach((row) => {
+      if (!merged.some((m) => m.block === row.block)) merged.push(row);
+    });
+    return merged.sort((a, b) => a.block - b.block);
+  });
 
-  useEffect(() => {
-    const apps = getApplications().map((app) => ({
-      id: app.id,
-      citizen: app.formData?.fullName || "Citizen",
-      dept: app.category || "General",
-      subject: app.schemeName,
-      status: app.status || "Pending",
-      priority: "medium",
-      filed: app.filed || "-",
-      district: app.state || "-",
-      doc: Boolean(app.uploadedFiles?.length),
-      hash: app.id
-    }));
-    if (apps.length) setQueries(apps);
+  const permissions = useMemo(() => getPermissions(adminRole), [adminRole]);
+  const navItems = useMemo(() => NAV_CONFIG.filter((n) => permissions[n.perm]), [permissions]);
+
+  const syncAll = useCallback(() => {
+    setQueries(buildMergedAdminQueries(QUERIES));
+    setRefreshTick((t) => t + 1);
+    const live = getBlockchainLedger();
+    const merged = [...BLOCKCHAIN_RECORDS];
+    live.forEach((row) => {
+      if (!merged.some((m) => m.block === row.block)) merged.push(row);
+    });
+    setBlockchainLedger(merged.sort((a, b) => a.block - b.block));
   }, []);
 
+  useEffect(() => {
+    syncAll();
+    const onApps = () => syncAll();
+    window.addEventListener("saathi-applications-updated", onApps);
+    const onVis = () => {
+      if (document.visibilityState === "visible") syncAll();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("saathi-applications-updated", onApps);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [syncAll]);
+
+  useEffect(() => {
+    setActiveTab((tab) => (navItems.some((n) => n.id === tab) ? tab : "overview"));
+  }, [navItems]);
+
+  const handleApplicationAction = useCallback(
+    (id, newStatus) => {
+      const exists = getApplications().some((a) => a.id === id);
+      if (exists) {
+        updateApplicationStatus(id, newStatus);
+        appendBlockchainEntry({
+          applicationId: id,
+          status: newStatus,
+          adminLabel: ADMIN.name,
+        });
+        syncAll();
+      } else {
+        setQueries((prev) => prev.map((q) => (q.id === id ? { ...q, status: newStatus } : q)));
+      }
+    },
+    [syncAll]
+  );
+
+  const handleRoleChange = useCallback((roleId) => {
+    setStoredAdminRole(roleId);
+    setAdminRole(roleId);
+    setActiveTab("overview");
+  }, []);
+
+  const adminEmail = useMemo(() => {
+    try {
+      const t = auth?.token;
+      if (!t) return "";
+      const payload = JSON.parse(atob(t.split(".")[1]));
+      return payload.email || "";
+    } catch {
+      return "";
+    }
+  }, [auth?.token]);
+
   const panels = {
-    overview:   <OverviewPanel setActiveTab={setActiveTab} queries={queries} />,
-    queries:    <QueriesPanel initialQueries={queries} />,
-    bots:       <BotsPanel />,
-    blockchain: <BlockchainPanel />,
-    profile:    <ProfilePanel onSignOut={onSignOut} />,
+    overview: <OverviewPanel setActiveTab={setActiveTab} queries={queries} />,
+    queries: (
+      <QueriesPanel
+        queries={queries}
+        adminRole={adminRole}
+        canWrite={permissions.queriesWrite}
+        onApplicationAction={handleApplicationAction}
+      />
+    ),
+    users: <UsersPanel refreshTick={refreshTick} />,
+    analytics: <AnalyticsPanel refreshTick={refreshTick} />,
+    bots: <BotsPanel canToggleBots={permissions.botsWrite} />,
+    blockchain: <BlockchainPanel ledger={blockchainLedger} />,
+    profile: (
+      <ProfilePanel
+        onSignOut={onSignOut}
+        adminRole={adminRole}
+        onRoleChange={handleRoleChange}
+        permissions={permissions}
+      />
+    ),
   };
 
-  const pendingCount = queries.filter(q => q.status === "Pending").length;
-  const escalated    = queries.filter(q => q.status === "Escalated").length;
+  const pendingCount = queries.filter((q) => q.status === "Pending").length;
+  const escalated = queries.filter((q) => q.status === "Escalated").length;
 
   return (
     <div className="bg-stone-50 min-h-screen" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -989,14 +1242,14 @@ export default function AdminDashboard({ onSignOut }) {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-stone-800 truncate">{ADMIN.name}</p>
-                <p className="text-xs text-stone-400 truncate">{ADMIN.dept}</p>
+                <p className="text-xs text-stone-400 truncate">{adminEmail || ADMIN.dept}</p>
               </div>
             </div>
           </div>
 
           {/* nav */}
           <nav className="flex-1 px-3 py-3 flex flex-col gap-0.5 overflow-y-auto">
-            {NAV.map(item => (
+            {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
@@ -1059,7 +1312,7 @@ export default function AdminDashboard({ onSignOut }) {
 
             <div className="flex-1">
               <p className="text-sm font-semibold text-stone-800">
-                {NAV.find(n => n.id === activeTab)?.label}
+                {navItems.find((n) => n.id === activeTab)?.label}
               </p>
               <p className="text-xs text-stone-400 hidden sm:block">SaathiSeva — Admin Panel · Bihar</p>
             </div>

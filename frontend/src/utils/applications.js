@@ -26,6 +26,7 @@ export function updateApplicationStatus(id, status) {
     "In Review": 50,
     Escalated: 65,
     Approved: 100,
+    Resolved: 100,
     Rejected: 100
   };
   const all = getApplications();
@@ -34,7 +35,7 @@ export function updateApplicationStatus(id, status) {
       ? {
           ...app,
           status,
-          progress: progressMap[status] || app.progress,
+          progress: progressMap[status] ?? app.progress,
           timeline: [
             ...(app.timeline || []),
             { label: `Status changed to ${status}`, done: true, date: new Date().toLocaleDateString() }
@@ -43,5 +44,10 @@ export function updateApplicationStatus(id, status) {
       : app
   );
   saveApplications(next);
+  try {
+    window.dispatchEvent(new CustomEvent("saathi-applications-updated", { detail: { id, status } }));
+  } catch {
+    /* ignore */
+  }
   return next;
 }
